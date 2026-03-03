@@ -21,6 +21,10 @@ const UserSchema = new mongoose.Schema({
 
   // Employee verification
   isVerified: { type: Boolean, default: false },
+  hasPaidVerificationFee: {   // <-- Added field
+    type: Boolean,
+    default: false
+  },
   uploadedDocuments: {
     idDocument: String,
     references: [String],

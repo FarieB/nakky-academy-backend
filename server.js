@@ -6,12 +6,12 @@ const cors = require("cors");
 dotenv.config();
 connectDB();
 
-const app = express();   // ✅ MUST come before app.use()
+const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// Import routes
+// Routes
 const authRoutes = require("./routes/authRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
@@ -19,6 +19,10 @@ const employeeRoutes = require("./routes/employeeRoutes");
 app.use("/api/auth", authRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/employee", employeeRoutes);
+
+app.get("/", (req, res) => {
+  res.send("Nakky Academy API Running 🚀");
+});
 
 const PORT = process.env.PORT || 5000;
 

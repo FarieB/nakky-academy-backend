@@ -10,6 +10,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // ==============================
 // Import routes
@@ -23,6 +24,7 @@ const courseRoutes = require("./routes/courseRoutes"); // ✅ Added course route
 // ==============================
 // Use routes
 // ==============================
+app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth", authRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/employee", employeeRoutes);

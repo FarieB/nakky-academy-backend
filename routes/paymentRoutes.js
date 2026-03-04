@@ -1,11 +1,20 @@
 const express = require("express");
 const router = express.Router();
-
-const { payEmployerSubscription, payEmployeeFee } = require("../controllers/paymentController");
 const protect = require("../middleware/authMiddleware");
 
-router.post("/pay-employer", protect, payEmployerSubscription);
-router.post("/pay-employee", protect, payEmployeeFee);
-router.put("/course/:enrollmentId", protect, payForCourse);
+const {
+  initiateCoursePayment,
+  payfastNotify
+} = require("../controllers/paymentController");
+
+// ==============================
+// Initiate PayFast Payment
+// ==============================
+router.post("/course/:enrollmentId", protect, initiateCoursePayment);
+
+// ==============================
+// PayFast Notification (NO protect)
+// ==============================
+router.post("/notify", payfastNotify);
 
 module.exports = router;

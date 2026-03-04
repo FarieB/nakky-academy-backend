@@ -1,6 +1,9 @@
 const User = require("../models/user");
+const Enrollment = require("../models/Enrollment");
 
-// Employer monthly subscription payment
+// ======================================
+// EMPLOYER: Monthly Subscription Payment
+// ======================================
 exports.payEmployerSubscription = async (req, res) => {
   try {
     const user = req.user;
@@ -9,7 +12,7 @@ exports.payEmployerSubscription = async (req, res) => {
       return res.status(403).json({ message: "Only employers can pay subscription" });
     }
 
-    // Simulate successful payment (we will integrate PayFast later)
+    // Simulate successful payment (PayFast integration later)
     user.subscriptionActive = true;
     user.subscriptionDate = new Date();
 
@@ -26,7 +29,9 @@ exports.payEmployerSubscription = async (req, res) => {
 };
 
 
-// Employee verification payment (one-time fee)
+// ======================================
+// EMPLOYEE: Verification Payment (One-Time)
+// ======================================
 exports.payEmployeeFee = async (req, res) => {
   try {
     const user = req.user;
@@ -43,6 +48,39 @@ exports.payEmployeeFee = async (req, res) => {
     res.json({
       message: "Employee verification fee paid successfully ✅",
       verificationPaid: true
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+// ======================================
+// STUDENT: Pay For Course
+// ======================================
+exports.payForCourse = async (req, res) => {
+  try {
+    const enrollment = await Enrollment.findById(req.params.enrollmentId);
+
+    if (!enrollment) {
+      return res.status(404).json({ message: "Enrollment not found" });
+    }
+
+    // Ensure logged-in user is the student who enrolled
+    if (enrollment.student.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    // Simulate successful payment
+    enrollment.paymentStatus = "paid";
+    enrollment.paymentDate = new Date(); // optional but recommended
+
+    await enrollment.save();
+
+    res.json({
+      message: "Course payment successful ✅",
+      paymentStatus: "paid"
     });
 
   } catch (err) {

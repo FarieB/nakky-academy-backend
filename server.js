@@ -17,7 +17,8 @@ app.use(express.json());
 const authRoutes = require("./routes/authRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
-const jobRoutes = require("./routes/jobRoutes"); // ✅ Added job routes
+const jobRoutes = require("./routes/jobRoutes");
+const courseRoutes = require("./routes/courseRoutes"); // ✅ Added course routes
 
 // ==============================
 // Use routes
@@ -25,7 +26,8 @@ const jobRoutes = require("./routes/jobRoutes"); // ✅ Added job routes
 app.use("/api/auth", authRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/employee", employeeRoutes);
-app.use("/api/jobs", jobRoutes); // ✅ Added job routes
+app.use("/api/jobs", jobRoutes);
+app.use("/api/courses", courseRoutes); // ✅ Added course endpoint
 
 // ==============================
 // Root route

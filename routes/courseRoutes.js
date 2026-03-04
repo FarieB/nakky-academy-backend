@@ -17,5 +17,7 @@ router.post("/:courseId/enroll", protect, enrollCourse);
 router.get("/:courseId/content", protect, getCourseContent);
 router.put("/:courseId/progress", protect, updateProgress);
 router.get("/:courseId/certificate", protect, issueCertificate);
+// Download PDF certificate
+router.get("/:courseId/download-certificate", protect, downloadCertificate);
 
 module.exports = router;

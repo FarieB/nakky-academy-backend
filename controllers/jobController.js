@@ -1,58 +1,184 @@
 const JobPost = require("../models/JobPost");
-const EmployeeProfile = require("../models/EmployeeProfile");
+const Employee = require("../models/Employee");
+const JobInvitation = require("../models/JobInvitation");
+const Message = require("../models/Message");
+const Hire = require("../models/Hire");
+
 
 // ==============================
-// Employer creates a job
+// Create Job
 // ==============================
 exports.createJob = async (req, res) => {
   try {
-    if (req.user.role !== "employer") {
-      return res.status(403).json({ message: "Only employers can create jobs" });
-    }
-
-    // Validation
-    const { province, city, requiredExperience, jobType } = req.body;
-    if (!province || !city || requiredExperience == null || !jobType) {
-      return res.status(400).json({ message: "Province, city, experience, and jobType are required" });
-    }
 
     const job = await JobPost.create({
       ...req.body,
-      employer: req.user._id
+      employer: req.user.id
     });
 
     res.status(201).json(job);
 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
+
+
 // ==============================
-// Get matched employees for a job
+// SMART MATCH ALGORITHM
 // ==============================
 exports.getMatchedCandidates = async (req, res) => {
+
   try {
+
     const job = await JobPost.findById(req.params.id);
-    if (!job) return res.status(404).json({ message: "Job not found" });
 
-    // 🔥 Matching query
-    const candidates = await EmployeeProfile.find({
-      province: job.province,
-      city: job.city,
-      yearsExperience: { $gte: job.requiredExperience },
-      skills: { $in: job.requiredSkills || [] },
-      age: { 
-        $gte: job.minAge || 18, 
-        $lte: job.maxAge || 65
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+    const candidates = await Employee.find({
+      jobType: job.jobType
+    });
+
+    const rankedCandidates = candidates.map(candidate => {
+
+      let score = 0;
+
+      // =================
+      // Location Score (25)
+      // =================
+      if (candidate.province === job.province) {
+        score += 15;
       }
-    })
-    .populate("user", "name email isVerified")
-    .where("user.isVerified").equals(true); // Only verified employees
 
-    res.json(candidates);
+      if (candidate.city === job.city) {
+        score += 10;
+      }
+
+      // =================
+      // Experience Score (25)
+      // =================
+      if (candidate.yearsOfExperience >= job.requiredExperience) {
+        score += 25;
+      }
+
+      // =================
+      // Skills Score (35)
+      // =================
+      if (candidate.skills && job.requiredSkills) {
+
+        const matchedSkills = candidate.skills.filter(skill =>
+          job.requiredSkills.includes(skill)
+        );
+
+        const skillScore =
+          (matchedSkills.length / job.requiredSkills.length) * 35;
+
+        score += skillScore;
+      }
+
+      // =================
+      // Age Score (15)
+      // =================
+      if (candidate.age >= job.minAge && candidate.age <= job.maxAge) {
+        score += 15;
+      }
+
+      return {
+        candidate,
+        matchScore: Math.round(score)
+      };
+
+    });
+
+    // Sort best matches first
+    rankedCandidates.sort((a, b) => b.matchScore - a.matchScore);
+
+    res.json(rankedCandidates);
 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
+
+};
+
+
+
+// ==============================
+// Invite Candidate
+// ==============================
+exports.inviteCandidate = async (req, res) => {
+
+  try {
+
+    const invitation = await JobInvitation.create({
+      employer: req.user.id,
+      candidate: req.body.candidateId,
+      job: req.params.jobId
+    });
+
+    res.status(201).json({
+      message: "Candidate invited successfully",
+      invitation
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+
+};
+
+
+
+// ==============================
+// Send Message
+// ==============================
+exports.sendMessage = async (req, res) => {
+
+  try {
+
+    const message = await Message.create({
+      sender: req.user.id,
+      receiver: req.body.receiverId,
+      job: req.body.jobId,
+      message: req.body.message
+    });
+
+    res.status(201).json({
+      message: "Message sent",
+      data: message
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+
+};
+
+
+
+// ==============================
+// Hire Candidate
+// ==============================
+exports.hireCandidate = async (req, res) => {
+
+  try {
+
+    const hire = await Hire.create({
+      employer: req.user.id,
+      candidate: req.body.candidateId,
+      job: req.params.jobId
+    });
+
+    res.status(201).json({
+      message: "Candidate hired successfully",
+      hire
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+
 };

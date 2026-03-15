@@ -1,37 +1,147 @@
 const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema({
+
   role: {
     type: String,
-    enum: ["employer", "employee", "admin"],
+    enum: ["employer", "employee", "student", "admin"],
     required: true
   },
+
   name: String,
-  email: { type: String, unique: true },
+
+  email: {
+    type: String,
+    unique: true
+  },
+
   password: String,
+
   phone: String,
 
-  // Employer subscription
+
+  // ==============================
+  // Worker Profile (Caregivers, Nannies, Helpers, Babysitters, Gardeners)
+  // ==============================
+
+  workerType: {
+    type: String,
+    enum: ["caregiver", "nanny", "helper", "babysitter", "gardener"]
+  },
+
+  province: String,
+
+  city: String,
+
+  skills: [String],
+
+  experienceYears: {
+    type: Number,
+    default: 0
+  },
+
+  expectedSalary: Number,
+
+  availability: {
+    type: String,
+    enum: ["full-time", "part-time", "live-in", "live-out"]
+  },
+
+  bio: {
+    type: String,
+    maxlength: 500
+  },
+
+
+  // ==============================
+  // Employer Subscription
+  // ==============================
+
   subscriptionStatus: {
     type: String,
     enum: ["active", "inactive"],
     default: "inactive"
   },
+
   subscriptionExpiry: Date,
 
-  // Employee verification
-  isVerified: { type: Boolean, default: false },
-  hasPaidVerificationFee: {   // <-- Added field
+  subscriptionPlan: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubscriptionPlan"
+  },
+
+  subscriptionExpires: {
+    type: Date
+  },
+
+
+  // ==============================
+  // Candidate Verification System
+  // ==============================
+
+  isVerified: {
     type: Boolean,
     default: false
   },
-  uploadedDocuments: {
-    idDocument: String,
-    references: [String],
-    qualifications: [String]
+
+  verificationStatus: {
+    type: String,
+    enum: ["unverified", "pending", "verified", "rejected"],
+    default: "unverified"
   },
 
-  createdAt: { type: Date, default: Date.now }
+  verifiedBadge: {
+    type: Boolean,
+    default: false
+  },
+
+  hasPaidVerificationFee: {
+    type: Boolean,
+    default: false
+  },
+
+
+  // ==============================
+  // Uploaded Documents
+  // ==============================
+
+  uploadedDocuments: {
+
+    idDocument: String,
+
+    policeClearance: String,
+
+    references: [String],
+
+    qualifications: [String]
+
+  },
+
+
+  // ==============================
+  // ⭐ Rating System
+  // ==============================
+
+  averageRating: {
+    type: Number,
+    default: 0
+  },
+
+  totalReviews: {
+    type: Number,
+    default: 0
+  },
+
+
+  // ==============================
+  // Metadata
+  // ==============================
+
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+
 });
 
 module.exports = mongoose.model("User", UserSchema);

@@ -3,6 +3,7 @@ const router = express.Router();
 
 const protect = require("../middleware/authMiddleware");
 const adminOnly = require("../middleware/adminMiddleware");
+const { getRevenue } = require("../controllers/adminController");
 
 const {
   getPlatformStats,
@@ -19,6 +20,11 @@ const {
 // Admin dashboard
 // ==============================
 router.get("/stats", protect, adminOnly, getPlatformStats);
+
+// ==============================
+// Admin revenue route
+// ==============================
+router.get("/revenue", protect, adminOnly, getRevenue);
 
 
 // ==============================

@@ -45,6 +45,11 @@ const jobRoutes = require("./routes/jobRoutes");
 const courseRoutes = require("./routes/courseRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const adminRoutes = require("./routes/adminRoutes"); // ✅ NEW
+const subscriptionRoutes = require("./routes/subscriptionRoutes");
+const verificationRoutes = require("./routes/verificationRoutes");
+const recommendationRoutes = require("./routes/recommendationRoutes");
+const reviewRoutes = require("./routes/reviewRoutes");
+const profileRoutes = require("./routes/profileRoutes");
 
 
 // ==============================
@@ -57,6 +62,11 @@ app.use("/api/jobs", jobRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/admin", adminRoutes); // ✅ NEW
+app.use("/api/subscription", subscriptionRoutes);
+app.use("/api/verification", verificationRoutes);
+app.use("/api/recommendations", recommendationRoutes);
+app.use("/api/reviews", reviewRoutes);
+app.use("/api/profiles", profileRoutes);
 
 
 // ==============================

@@ -149,3 +149,38 @@ exports.deleteJob = async (req, res) => {
   }
 
 };
+
+
+// ==============================
+// Revenue Analytics
+// ==============================
+const Payment = require("../models/Payment");
+
+exports.getRevenue = async (req, res) => {
+
+    try {
+
+        const totalRevenue = await Payment.aggregate([
+        { $match: { status: "paid" } },
+        {
+            $group: {
+                _id: null,
+                total: { $sum: "$amount" }
+            }
+        }
+        ]);
+
+        const payments = await Payment.find().populate("user");
+
+        res.json({
+            revenue: totalRevenue[0]?.total || 0,
+            payments
+        });
+
+    } catch (error) {
+
+        res.status(500).json({ message: error.message });
+
+    }
+
+};

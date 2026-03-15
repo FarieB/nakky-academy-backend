@@ -1,6 +1,9 @@
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const PDFDocument = require("pdfkit");
+const path = require("path");
+const fs = require("fs");
+
 
 // ==============================
 // ADMIN: Create Course
@@ -19,33 +22,84 @@ exports.createCourse = async (req, res) => {
   }
 };
 
+
 // ==============================
 // ADMIN: Add Lesson to Course
 // ==============================
 exports.addCourseContent = async (req, res) => {
   try {
+
     if (req.user.role !== "admin") {
       return res.status(403).json({ message: "Admin only" });
     }
 
     const course = await Course.findById(req.params.courseId);
-    if (!course) return res.status(404).json({ message: "Course not found" });
+
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
 
     course.content.push(req.body);
+
     await course.save();
 
     res.json({ message: "Lesson added successfully ✅" });
 
   } catch (err) {
+
     res.status(500).json({ error: err.message });
+
   }
 };
+
+
+// ==============================
+// ADMIN: Upload Lesson Video
+// ==============================
+exports.uploadLessonVideo = async (req, res) => {
+
+  try {
+
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Admin only" });
+    }
+
+    const course = await Course.findById(req.params.courseId);
+
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    const lesson = {
+      title: req.body.title,
+      description: req.body.description,
+      videoUrl: req.file.filename
+    };
+
+    course.content.push(lesson);
+
+    await course.save();
+
+    res.json({
+      message: "Lesson video uploaded successfully 🎥"
+    });
+
+  } catch (err) {
+
+    res.status(500).json({ error: err.message });
+
+  }
+
+};
+
 
 // ==============================
 // STUDENT: Enroll in Course
 // ==============================
 exports.enrollCourse = async (req, res) => {
+
   try {
+
     if (req.user.role !== "student") {
       return res.status(403).json({ message: "Students only" });
     }
@@ -70,15 +124,21 @@ exports.enrollCourse = async (req, res) => {
     });
 
   } catch (err) {
+
     res.status(500).json({ error: err.message });
+
   }
+
 };
+
 
 // ==============================
 // STUDENT: Access Course Content
 // ==============================
 exports.getCourseContent = async (req, res) => {
+
   try {
+
     const enrollment = await Enrollment.findOne({
       student: req.user._id,
       course: req.params.courseId,
@@ -86,21 +146,106 @@ exports.getCourseContent = async (req, res) => {
     }).populate("course");
 
     if (!enrollment) {
-      return res.status(403).json({ message: "You must pay for this course" });
+      return res.status(403).json({
+        message: "You must pay for this course"
+      });
     }
 
     res.json(enrollment.course.content);
 
   } catch (err) {
+
     res.status(500).json({ error: err.message });
+
   }
+
 };
+
+
+// ==============================
+// STREAM VIDEO SECURELY
+// ==============================
+exports.streamVideo = async (req, res) => {
+
+  try {
+
+    const enrollment = await Enrollment.findOne({
+      student: req.user._id,
+      course: req.params.courseId,
+      paymentStatus: "paid"
+    });
+
+    if (!enrollment) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const videoPath = path.join(
+      __dirname,
+      "../uploads/videos",
+      req.params.filename
+    );
+
+    const stat = fs.statSync(videoPath);
+    const fileSize = stat.size;
+    const range = req.headers.range;
+
+    if (range) {
+
+      const parts = range.replace(/bytes=/, "").split("-");
+
+      const start = parseInt(parts[0], 10);
+
+      const end = parts[1]
+        ? parseInt(parts[1], 10)
+        : fileSize - 1;
+
+      const chunkSize = end - start + 1;
+
+      const file = fs.createReadStream(videoPath, {
+        start,
+        end
+      });
+
+      const head = {
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": chunkSize,
+        "Content-Type": "video/mp4"
+      };
+
+      res.writeHead(206, head);
+
+      file.pipe(res);
+
+    } else {
+
+      const head = {
+        "Content-Length": fileSize,
+        "Content-Type": "video/mp4"
+      };
+
+      res.writeHead(200, head);
+
+      fs.createReadStream(videoPath).pipe(res);
+
+    }
+
+  } catch (err) {
+
+    res.status(500).json({ error: err.message });
+
+  }
+
+};
+
 
 // ==============================
 // STUDENT: Update Progress
 // ==============================
 exports.updateProgress = async (req, res) => {
+
   try {
+
     const { lessonId } = req.body;
 
     const enrollment = await Enrollment.findOne({
@@ -110,7 +255,9 @@ exports.updateProgress = async (req, res) => {
     });
 
     if (!enrollment) {
-      return res.status(403).json({ message: "Not enrolled or unpaid" });
+      return res.status(403).json({
+        message: "Not enrolled or unpaid"
+      });
     }
 
     if (!enrollment.lessonsCompleted.find(l => l.lessonId === lessonId)) {
@@ -129,18 +276,26 @@ exports.updateProgress = async (req, res) => {
 
     await enrollment.save();
 
-    res.json({ progress: enrollment.progress });
+    res.json({
+      progress: enrollment.progress
+    });
 
   } catch (err) {
+
     res.status(500).json({ error: err.message });
+
   }
+
 };
 
+
 // ==============================
-// STUDENT: Issue Certificate (JSON response)
+// STUDENT: Issue Certificate
 // ==============================
 exports.issueCertificate = async (req, res) => {
+
   try {
+
     const enrollment = await Enrollment.findOne({
       student: req.user._id,
       course: req.params.courseId,
@@ -148,10 +303,13 @@ exports.issueCertificate = async (req, res) => {
     }).populate("course");
 
     if (!enrollment) {
-      return res.status(400).json({ message: "Course not completed" });
+      return res.status(400).json({
+        message: "Course not completed"
+      });
     }
 
     enrollment.certificateIssued = true;
+
     await enrollment.save();
 
     res.json({
@@ -164,15 +322,21 @@ exports.issueCertificate = async (req, res) => {
     });
 
   } catch (err) {
+
     res.status(500).json({ error: err.message });
+
   }
+
 };
+
 
 // ==============================
 // STUDENT: Download PDF Certificate
 // ==============================
 exports.downloadCertificate = async (req, res) => {
+
   try {
+
     const enrollment = await Enrollment.findOne({
       student: req.user._id,
       course: req.params.courseId,
@@ -180,27 +344,36 @@ exports.downloadCertificate = async (req, res) => {
     }).populate("course");
 
     if (!enrollment) {
-      return res.status(400).json({ message: "Course not completed" });
+      return res.status(400).json({
+        message: "Course not completed"
+      });
     }
 
     enrollment.certificateIssued = true;
+
     await enrollment.save();
 
-    // Create PDF document
-    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    const doc = new PDFDocument({
+      size: "A4",
+      margin: 50
+    });
 
-    // Filename
     const fileName = `Certificate_${enrollment.course.title}_${req.user.name}.pdf`;
-    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${fileName}"`
+    );
+
     res.setHeader("Content-Type", "application/pdf");
 
-    // Stream PDF to response
     doc.pipe(res);
 
-    // Certificate content
     doc
       .fontSize(24)
-      .text("Nakky Academy Certificate of Completion", { align: "center" })
+      .text("Nakky Academy Certificate of Completion", {
+        align: "center"
+      })
       .moveDown(2);
 
     doc
@@ -210,36 +383,54 @@ exports.downloadCertificate = async (req, res) => {
 
     doc
       .fontSize(22)
-      .text(req.user.name, { align: "center", underline: true })
+      .text(req.user.name, {
+        align: "center",
+        underline: true
+      })
       .moveDown(1);
 
     doc
       .fontSize(18)
-      .text("has successfully completed the course", { align: "center" })
+      .text("has successfully completed the course", {
+        align: "center"
+      })
       .moveDown(1);
 
     doc
       .fontSize(20)
-      .text(enrollment.course.title, { align: "center", underline: true })
+      .text(enrollment.course.title, {
+        align: "center",
+        underline: true
+      })
       .moveDown(2);
 
     doc
       .fontSize(16)
-      .text(`Date: ${new Date().toLocaleDateString()}`, { align: "center" })
+      .text(`Date: ${new Date().toLocaleDateString()}`, {
+        align: "center"
+      })
       .moveDown(1);
 
     doc
       .fontSize(16)
-      .text("Instructor: Nakky Academy", { align: "center" })
+      .text("Instructor: Nakky Academy", {
+        align: "center"
+      })
       .moveDown(3);
 
     doc
       .fontSize(12)
-      .text("This certificate is proof of successful completion of the course.", { align: "center" });
+      .text(
+        "This certificate is proof of successful completion of the course.",
+        { align: "center" }
+      );
 
     doc.end();
 
   } catch (err) {
+
     res.status(500).json({ error: err.message });
+
   }
+
 };

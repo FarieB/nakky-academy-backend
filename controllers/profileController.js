@@ -62,7 +62,13 @@ exports.searchWorkers = async (req, res) => {
 
   try {
 
-    const { workerType, province, minRating } = req.query;
+    const {
+      workerType,
+      province,
+      minRating,
+      availabilityStatus,
+      workPreference
+    } = req.query;
 
     const filter = {
       role: "employee"
@@ -72,9 +78,16 @@ exports.searchWorkers = async (req, res) => {
 
     if (province) filter.province = province;
 
-    if (minRating) filter.averageRating = { $gte: minRating };
+    if (availabilityStatus) filter.availabilityStatus = availabilityStatus;
 
-    const workers = await User.find(filter)
+    if (workPreference) filter.workPreference = workPreference;
+
+    if (minRating) {
+      filter.averageRating = { $gte: Number(minRating) };
+    }
+
+    const workers = await require("../models/user")
+      .find(filter)
       .select("-password")
       .sort({ averageRating: -1 });
 
@@ -82,7 +95,9 @@ exports.searchWorkers = async (req, res) => {
 
   } catch (error) {
 
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      message: error.message
+    });
 
   }
 

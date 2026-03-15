@@ -50,6 +50,7 @@ const verificationRoutes = require("./routes/verificationRoutes");
 const recommendationRoutes = require("./routes/recommendationRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
 const profileRoutes = require("./routes/profileRoutes");
+const searchRoutes = require("./routes/searchRoutes");
 
 
 // ==============================
@@ -67,6 +68,7 @@ app.use("/api/verification", verificationRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/profiles", profileRoutes);
+app.use("/api/search", searchRoutes);
 
 
 // ==============================

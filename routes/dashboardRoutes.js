@@ -1,18 +1,14 @@
 const express = require("express");
 const router = express.Router();
-
 const protect = require("../middleware/authMiddleware");
 
-const {
-  getCandidateDashboard,
-  getEmployerDashboard
-} = require("../controllers/dashboardController");
+const { getUnifiedDashboard } = require("../controllers/dashboardController");
 
-
-// Candidate dashboard
-router.get("/candidate", protect, getCandidateDashboard);
-
-// Employer dashboard
-router.get("/employer", protect, getEmployerDashboard);
+// ==============================
+// Unified Dashboard Endpoint
+// ==============================
+// Role-based: Admins see revenue, verification stats, all jobs/candidates
+// Employers see their jobs, candidates, invitations, hires, messages, AI recommendations
+router.get("/", protect, getUnifiedDashboard);
 
 module.exports = router;

@@ -52,6 +52,35 @@ const UserSchema = new mongoose.Schema({
     maxlength: 500
   },
 
+  // ==============================
+// Worker Details
+// ==============================
+workerType: {
+  type: String,
+  enum: ["caregiver", "nanny", "helper", "babysitter", "gardener"],
+},
+
+yearsExperience: {
+  type: Number,
+  default: 0
+},
+
+skills: [
+  {
+    type: String,
+    trim: true
+  }
+],
+
+expectedSalary: {
+  type: Number
+},
+
+averageRating: {
+  type: Number,
+  default: 0
+},
+
 
   // ==============================
   // Employer Subscription
@@ -131,6 +160,32 @@ const UserSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+
+
+  // ==============================
+// Worker Availability
+// ==============================
+
+availabilityStatus: {
+  type: String,
+  enum: [
+    "available-now",
+    "available-next-week",
+    "available-next-month",
+    "not-available"
+  ],
+  default: "available-now"
+},
+
+workPreference: {
+  type: String,
+  enum: [
+    "full-time",
+    "part-time",
+    "live-in",
+    "live-out"
+  ]
+},
 
 
   // ==============================

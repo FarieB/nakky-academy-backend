@@ -1,130 +1,153 @@
-const JobInvitation = require("../models/JobInvitation");
-const Message = require("../models/Message");
 const JobPost = require("../models/JobPost");
-const Employee = require("../models/Employee");
-const CourseEnrollment = require("../models/CourseEnrollment");
+const JobInvitation = require("../models/JobInvitation");
 const Hire = require("../models/Hire");
-
+const Message = require("../models/Message");
+const User = require("../models/user");
+const Enrollment = require("../models/Enrollment");
+const Course = require("../models/Course");
 
 // ==============================
-// Candidate Dashboard
+// Unified Dashboard (Admin & Employer)
 // ==============================
-exports.getCandidateDashboard = async (req, res) => {
-
+exports.getUnifiedDashboard = async (req, res) => {
   try {
+    const userId = req.user._id;
+    const role = req.user.role;
 
-    const userId = req.user.id;
+    // ==========================
+    // Employer View
+    // ==========================
+    if (role === "employer") {
+      // Jobs posted by this employer
+      const jobs = await JobPost.find({ employer: userId }).sort({ createdAt: -1 });
 
-    const employee = await Employee.findOne({ user: userId });
+      // Invitations sent by this employer
+      const invitations = await JobInvitation.find({ employer: userId })
+        .populate("candidate", "name workerType skills yearsExperience verifiedBadge")
+        .populate("job");
 
-    if (!employee) {
-      return res.status(404).json({ message: "Employee profile not found" });
+      // Hires made by this employer
+      const hires = await Hire.find({ employer: userId })
+        .populate("candidate", "name workerType skills yearsExperience verifiedBadge")
+        .populate("job");
+
+      // Messages sent or received
+      const messages = await Message.find({
+        $or: [{ sender: userId }, { receiver: userId }]
+      })
+        .populate("sender", "name")
+        .populate("receiver", "name")
+        .sort({ createdAt: -1 });
+
+      // AI Recommendations for top jobs
+      let recommendations = [];
+      if (jobs.length > 0) {
+        const { getRecommendedCandidates } = require("./jobController");
+        for (const job of jobs.slice(0, 5)) {
+          const reqMock = { params: { id: job._id }, user: req.user };
+          const resMock = {
+            json: (data) => recommendations.push({ job: job._id, topCandidates: data })
+          };
+          await getRecommendedCandidates(reqMock, resMock);
+        }
+      }
+
+      // Dashboard stats
+      const stats = {
+        totalJobs: jobs.length,
+        totalInvitations: invitations.length,
+        totalHires: hires.length,
+        totalMessages: messages.length
+      };
+
+      return res.json({
+        role: "employer",
+        stats,
+        jobs,
+        invitations,
+        hires,
+        messages,
+        recommendations
+      });
     }
 
-    const invitations = await JobInvitation.find({
-      candidate: employee._id
-    })
-      .populate("job")
-      .populate("employer", "name email");
+    // ==========================
+    // Admin View
+    // ==========================
+    if (role === "admin") {
+      // All jobs
+      const jobs = await JobPost.find().sort({ createdAt: -1 });
 
-    const messages = await Message.find({
-      receiver: userId
-    })
-      .populate("sender", "name email")
-      .sort({ createdAt: -1 });
+      // All invitations
+      const invitations = await JobInvitation.find()
+        .populate("candidate", "name workerType skills yearsExperience verifiedBadge")
+        .populate("employer", "name")
+        .populate("job");
 
-    const recommendedJobs = await JobPost.find({
-      jobType: employee.jobType,
-      province: employee.province
-    }).limit(10);
+      // All hires
+      const hires = await Hire.find()
+        .populate("candidate", "name workerType skills yearsExperience verifiedBadge")
+        .populate("employer", "name")
+        .populate("job");
 
-    const courses = await CourseEnrollment.find({
-      student: userId
-    }).populate("course");
+      // All messages
+      const messages = await Message.find()
+        .populate("sender", "name")
+        .populate("receiver", "name")
+        .sort({ createdAt: -1 });
 
-    res.json({
-      employee,
-      invitations,
-      messages,
-      recommendedJobs,
-      courses
-    });
+      // Candidate verification stats
+      const candidateStats = await User.aggregate([
+        { $match: { role: "employee" } },
+        { $group: { _id: "$verificationStatus", count: { $sum: 1 } } }
+      ]);
 
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+      // Revenue analytics
+      const employers = await User.find({ role: "employer" });
+      const students = await User.find({ role: "student" });
+
+      const totalEmployerRevenue = employers.reduce((sum, e) => {
+        if (e.subscriptionStatus === "active") return sum + 100; // R100 monthly subscription assumed
+        return sum;
+      }, 0);
+
+      const totalVerificationRevenue = students.reduce((sum, s) => {
+        if (s.hasPaidVerificationFee) return sum + 100; // R100 verification fee
+        return sum;
+      }, 0);
+
+      const totalCourseRevenue = await Enrollment.aggregate([
+        { $match: { paymentStatus: "paid" } },
+        { $group: { _id: null, total: { $sum: "$amountPaid" } } }
+      ]);
+
+      const totalRevenue =
+        totalEmployerRevenue +
+        totalVerificationRevenue +
+        (totalCourseRevenue[0] ? totalCourseRevenue[0].total : 0);
+
+      const stats = {
+        totalJobs: jobs.length,
+        totalInvitations: invitations.length,
+        totalHires: hires.length,
+        totalMessages: messages.length,
+        candidateVerification: candidateStats,
+        totalRevenue
+      };
+
+      return res.json({
+        role: "admin",
+        stats,
+        jobs,
+        invitations,
+        hires,
+        messages
+      });
+    }
+
+    res.status(403).json({ message: "Unauthorized role" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message });
   }
-
-};
-
-
-
-// ==============================
-// Employer Dashboard
-// ==============================
-exports.getEmployerDashboard = async (req, res) => {
-
-  try {
-
-    const employerId = req.user.id;
-
-    // ==========================
-    // Jobs posted by employer
-    // ==========================
-    const jobs = await JobPost.find({
-      employer: employerId
-    }).sort({ createdAt: -1 });
-
-
-    // ==========================
-    // Invitations sent
-    // ==========================
-    const invitations = await JobInvitation.find({
-      employer: employerId
-    })
-      .populate("candidate")
-      .populate("job");
-
-
-    // ==========================
-    // Hires
-    // ==========================
-    const hires = await Hire.find({
-      employer: employerId
-    })
-      .populate("candidate")
-      .populate("job");
-
-
-    // ==========================
-    // Messages
-    // ==========================
-    const messages = await Message.find({
-      sender: employerId
-    })
-      .populate("receiver", "name email")
-      .sort({ createdAt: -1 });
-
-
-    // ==========================
-    // Stats
-    // ==========================
-    const stats = {
-      totalJobs: jobs.length,
-      totalInvitations: invitations.length,
-      totalHires: hires.length
-    };
-
-
-    res.json({
-      stats,
-      jobs,
-      invitations,
-      hires,
-      messages
-    });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-
 };

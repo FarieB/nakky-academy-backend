@@ -3,6 +3,7 @@ const Employee = require("../models/Employee");
 const JobInvitation = require("../models/JobInvitation");
 const Message = require("../models/Message");
 const Hire = require("../models/Hire");
+const User = require("../models/user");
 
 
 // ==============================
@@ -181,4 +182,68 @@ exports.hireCandidate = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 
+};
+
+// ==============================
+// Get Recommended Candidates for a Job Post
+// ==============================
+exports.getRecommendedCandidates = async (req, res) => {
+  try {
+    const job = await JobPost.findById(req.params.id);
+    if (!job) return res.status(404).json({ message: "Job not found" });
+
+    // Build filter based on job requirements
+    const filter = {
+      role: "employee",
+      workerType: job.jobType,
+      province: job.province,
+      yearsExperience: { $gte: job.requiredExperience },
+      verifiedBadge: true
+    };
+
+    // Age filter
+    if (job.minAge || job.maxAge) {
+      filter.age = {};
+      if (job.minAge) filter.age.$gte = job.minAge;
+      if (job.maxAge) filter.age.$lte = job.maxAge;
+    }
+
+    // Skills filter: match at least one required skill
+    if (job.requiredSkills && job.requiredSkills.length > 0) {
+      filter.skills = { $in: job.requiredSkills };
+    }
+
+    // Query candidates
+    let candidates = await User.find(filter).select("-password");
+
+    // Score candidates
+    candidates = candidates.map(candidate => {
+      let score = 0;
+
+      // Matching skills
+      const matchedSkills = candidate.skills.filter(skill => job.requiredSkills.includes(skill));
+      score += matchedSkills.length * 10; // each skill 10 points
+
+      // Experience weight
+      score += candidate.yearsExperience;
+
+      // Ratings weight
+      score += candidate.averageRating * 5;
+
+      // Availability bonus
+      if (candidate.availabilityStatus === "available-now") score += 10;
+      if (candidate.verifiedBadge) score += 5;
+
+      return { candidate, score };
+    });
+
+    // Sort by score descending
+    candidates.sort((a, b) => b.score - a.score);
+
+    // Return top 5 recommended candidates
+    res.json(candidates.slice(0, 5));
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };

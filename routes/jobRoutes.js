@@ -7,17 +7,24 @@ const checkSubscription = require("../middleware/subscriptionMiddleware");
 const {
   createJob,
   getMatchedCandidates,
+  getRecommendedCandidates, // ✅ Added AI recommendations
   inviteCandidate,
   sendMessage,
   hireCandidate
 } = require("../controllers/jobController");
 
+// ==============================
+// Job routes
+// ==============================
 
 // Create job
 router.post("/", protect, checkSubscription, createJob);
 
-// Smart matching
+// Smart matching (basic)
 router.get("/:id/matches", protect, checkSubscription, getMatchedCandidates);
+
+// AI-powered recommended candidates
+router.get("/:id/recommended", protect, checkSubscription, getRecommendedCandidates);
 
 // Invite candidate
 router.post("/:jobId/invite", protect, checkSubscription, inviteCandidate);

@@ -2,103 +2,137 @@ const User = require("../models/user");
 
 
 // ==============================
-// Update Worker Profile
+// Update Worker Profile (EMPLOYEE ONLY)
 // ==============================
-
 exports.updateWorkerProfile = async (req, res) => {
-
   try {
-
+    // Only employees can update worker profiles
     if (req.user.role !== "employee") {
       return res.status(403).json({
-        message: "Only workers can update profiles"
+        message: "Only employees can update worker profiles"
       });
     }
 
-    const updated = await User.findByIdAndUpdate(
-      req.user._id,
-      req.body,
-      { new: true }
-    );
+    // Only allow safe fields to be updated
+    const allowedFields = [
+      "workerType",
+      "skills",
+      "yearsExperience",
+      "expectedSalary",
+      "province",
+      "city",
+      "availabilityStatus",
+      "workPreference",
+      "bio"
+    ];
 
-    res.json(updated);
+    const updates = {};
+
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    });
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    return res.json(updatedUser);
 
   } catch (error) {
-
-    res.status(500).json({ message: error.message });
-
+    return res.status(500).json({ message: error.message });
   }
-
 };
 
 
 // ==============================
 // View Worker Profile
 // ==============================
-
 exports.getWorkerProfile = async (req, res) => {
-
   try {
+    const worker = await User.findOne({
+      _id: req.params.id,
+      role: "employee"
+    }).select("-password");
 
-    const worker = await User.findById(req.params.id)
-      .select("-password");
+    if (!worker) {
+      return res.status(404).json({
+        message: "Worker not found"
+      });
+    }
 
-    res.json(worker);
+    return res.json(worker);
 
   } catch (error) {
-
-    res.status(500).json({ message: error.message });
-
+    return res.status(500).json({ message: error.message });
   }
-
 };
 
 
 // ==============================
-// Search Workers
+// Search Workers (Filters)
 // ==============================
-
 exports.searchWorkers = async (req, res) => {
-
   try {
-
     const {
       workerType,
       province,
       minRating,
       availabilityStatus,
-      workPreference
+      workPreference,
+      minExperience,
+      maxExperience,
+      keyword
     } = req.query;
 
     const filter = {
       role: "employee"
     };
 
+    // Basic filters
     if (workerType) filter.workerType = workerType;
-
     if (province) filter.province = province;
-
     if (availabilityStatus) filter.availabilityStatus = availabilityStatus;
-
     if (workPreference) filter.workPreference = workPreference;
 
+    // Rating filter
     if (minRating) {
       filter.averageRating = { $gte: Number(minRating) };
     }
 
-    const workers = await require("../models/user")
-      .find(filter)
-      .select("-password")
-      .sort({ averageRating: -1 });
+    // Experience filter
+    if (minExperience || maxExperience) {
+      filter.yearsExperience = {};
 
-    res.json(workers);
+      if (minExperience) {
+        filter.yearsExperience.$gte = Number(minExperience);
+      }
+
+      if (maxExperience) {
+        filter.yearsExperience.$lte = Number(maxExperience);
+      }
+    }
+
+    // Keyword search (name or skills)
+    if (keyword) {
+      filter.$or = [
+        { name: { $regex: keyword, $options: "i" } },
+        { skills: { $in: [new RegExp(keyword, "i")] } }
+      ];
+    }
+
+    const workers = await User.find(filter)
+      .select("-password")
+      .sort({ averageRating: -1, yearsExperience: -1 });
+
+    return res.json(workers);
 
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };

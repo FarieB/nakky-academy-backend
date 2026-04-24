@@ -1,9 +1,8 @@
 const User = require("../models/user");
-const EmployeeProfile = require("../models/EmployeeProfile");
 
 
 // ==============================
-// Upload employee documents
+// Upload Employee Documents
 // ==============================
 exports.uploadDocuments = async (req, res) => {
   try {
@@ -14,36 +13,45 @@ exports.uploadDocuments = async (req, res) => {
     }
 
     if (user.role !== "employee") {
-      return res.status(403).json({ message: "Only employees can upload documents" });
-    }
-
-    // Optional: Ensure employee paid verification fee
-    if (!user.hasPaidVerificationFee) {
       return res.status(403).json({
-        message: "Please pay the R100 verification fee before uploading documents"
+        message: "Only employees can upload documents"
       });
     }
 
-    const { idDocument, references, qualifications } = req.body;
+    if (!user.hasPaidVerificationFee) {
+      return res.status(403).json({
+        message: "Please pay the R100 verification fee first"
+      });
+    }
+
+    const {
+      idDocument,
+      policeClearance,
+      references,
+      qualifications
+    } = req.body;
 
     if (!idDocument || !references || !qualifications) {
       return res.status(400).json({
-        message: "ID document, references and qualifications are required"
+        message: "Required: ID document, references, qualifications"
       });
     }
 
     user.uploadedDocuments = {
       idDocument,
+      policeClearance: policeClearance || null,
       references,
       qualifications
     };
 
-    user.isVerified = false; // Reset until admin approves
+    user.verificationStatus = "pending";
+    user.isVerified = false;
+    user.verifiedBadge = false;
 
     await user.save();
 
     res.json({
-      message: "Documents uploaded successfully. Awaiting admin verification."
+      message: "Documents uploaded. Awaiting admin verification."
     });
 
   } catch (err) {
@@ -53,35 +61,40 @@ exports.uploadDocuments = async (req, res) => {
 
 
 // ==============================
-// Admin verifies employee
+// Admin Verify Employee
 // ==============================
 exports.verifyEmployee = async (req, res) => {
   try {
-
     if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Admin access required" });
+      return res.status(403).json({
+        message: "Admin access required"
+      });
     }
 
-    const { id } = req.params;
-
-    const user = await User.findById(id);
+    const user = await User.findById(req.params.id);
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({
+        message: "User not found"
+      });
     }
 
     if (user.role !== "employee") {
-      return res.status(400).json({ message: "Not an employee account" });
+      return res.status(400).json({
+        message: "Not an employee"
+      });
     }
 
-    // Must have uploaded documents
     if (!user.uploadedDocuments?.idDocument) {
       return res.status(400).json({
-        message: "Employee has not uploaded required documents"
+        message: "Documents not uploaded"
       });
     }
 
     user.isVerified = true;
+    user.verificationStatus = "verified";
+    user.verifiedBadge = true;
+
     await user.save();
 
     res.json({
@@ -95,27 +108,50 @@ exports.verifyEmployee = async (req, res) => {
 
 
 // ==============================
-// Create or Update Professional Profile
+// Update Professional Profile
 // ==============================
-exports.createOrUpdateProfile = async (req, res) => {
+exports.updateEmployeeProfile = async (req, res) => {
   try {
     if (req.user.role !== "employee") {
-      return res.status(403).json({ message: "Employees only" });
+      return res.status(403).json({
+        message: "Employees only"
+      });
     }
 
     if (!req.user.isVerified) {
       return res.status(403).json({
-        message: "Profile must be verified before creating professional profile"
+        message: "You must be verified first"
       });
     }
 
-    const profile = await EmployeeProfile.findOneAndUpdate(
-      { user: req.user._id },
-      { ...req.body, user: req.user._id },
-      { new: true, upsert: true }
-    );
+    // Allowed fields only
+    const allowedFields = [
+      "workerType",
+      "skills",
+      "yearsExperience",
+      "expectedSalary",
+      "province",
+      "city",
+      "availabilityStatus",
+      "workPreference",
+      "bio"
+    ];
 
-    res.json(profile);
+    const updates = {};
+
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    });
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    res.json(updatedUser);
 
   } catch (err) {
     res.status(500).json({ error: err.message });

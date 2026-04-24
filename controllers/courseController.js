@@ -6,6 +6,37 @@ const fs = require("fs");
 
 
 // ==============================
+// GET ALL COURSES (NEW - REQUIRED)
+// ==============================
+exports.getAllCourses = async (req, res) => {
+  try {
+    const courses = await Course.find().select("-content");
+    res.json(courses);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+// ==============================
+// GET SINGLE COURSE (NEW)
+// ==============================
+exports.getCourseById = async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.courseId).select("-content");
+
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    res.json(course);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+// ==============================
 // ADMIN: Create Course
 // ==============================
 exports.createCourse = async (req, res) => {
@@ -24,11 +55,10 @@ exports.createCourse = async (req, res) => {
 
 
 // ==============================
-// ADMIN: Add Lesson to Course
+// ADMIN: Add Lesson
 // ==============================
 exports.addCourseContent = async (req, res) => {
   try {
-
     if (req.user.role !== "admin") {
       return res.status(403).json({ message: "Admin only" });
     }
@@ -39,16 +69,18 @@ exports.addCourseContent = async (req, res) => {
       return res.status(404).json({ message: "Course not found" });
     }
 
-    course.content.push(req.body);
+    course.content.push({
+      title: req.body.title,
+      description: req.body.description,
+      videoUrl: req.body.videoUrl || null
+    });
 
     await course.save();
 
     res.json({ message: "Lesson added successfully ✅" });
 
   } catch (err) {
-
     res.status(500).json({ error: err.message });
-
   }
 };
 
@@ -57,11 +89,13 @@ exports.addCourseContent = async (req, res) => {
 // ADMIN: Upload Lesson Video
 // ==============================
 exports.uploadLessonVideo = async (req, res) => {
-
   try {
-
     if (req.user.role !== "admin") {
       return res.status(403).json({ message: "Admin only" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No video uploaded" });
     }
 
     const course = await Course.findById(req.params.courseId);
@@ -77,29 +111,24 @@ exports.uploadLessonVideo = async (req, res) => {
     };
 
     course.content.push(lesson);
-
     await course.save();
 
     res.json({
-      message: "Lesson video uploaded successfully 🎥"
+      message: "Lesson video uploaded successfully 🎥",
+      lesson
     });
 
   } catch (err) {
-
     res.status(500).json({ error: err.message });
-
   }
-
 };
 
 
 // ==============================
-// STUDENT: Enroll in Course
+// STUDENT: Enroll
 // ==============================
 exports.enrollCourse = async (req, res) => {
-
   try {
-
     if (req.user.role !== "student") {
       return res.status(403).json({ message: "Students only" });
     }
@@ -115,7 +144,8 @@ exports.enrollCourse = async (req, res) => {
 
     const enrollment = await Enrollment.create({
       student: req.user._id,
-      course: req.params.courseId
+      course: req.params.courseId,
+      paymentStatus: "pending"
     });
 
     res.status(201).json({
@@ -124,21 +154,16 @@ exports.enrollCourse = async (req, res) => {
     });
 
   } catch (err) {
-
     res.status(500).json({ error: err.message });
-
   }
-
 };
 
 
 // ==============================
-// STUDENT: Access Course Content
+// STUDENT: GET CONTENT
 // ==============================
 exports.getCourseContent = async (req, res) => {
-
   try {
-
     const enrollment = await Enrollment.findOne({
       student: req.user._id,
       course: req.params.courseId,
@@ -151,24 +176,22 @@ exports.getCourseContent = async (req, res) => {
       });
     }
 
-    res.json(enrollment.course.content);
+    res.json({
+      content: enrollment.course.content,
+      progress: enrollment.progress || 0
+    });
 
   } catch (err) {
-
     res.status(500).json({ error: err.message });
-
   }
-
 };
 
 
 // ==============================
-// STREAM VIDEO SECURELY
+// STREAM VIDEO (SAFE VERSION)
 // ==============================
 exports.streamVideo = async (req, res) => {
-
   try {
-
     const enrollment = await Enrollment.findOne({
       student: req.user._id,
       course: req.params.courseId,
@@ -185,67 +208,51 @@ exports.streamVideo = async (req, res) => {
       req.params.filename
     );
 
+    if (!fs.existsSync(videoPath)) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+
     const stat = fs.statSync(videoPath);
     const fileSize = stat.size;
     const range = req.headers.range;
 
     if (range) {
-
       const parts = range.replace(/bytes=/, "").split("-");
-
       const start = parseInt(parts[0], 10);
-
-      const end = parts[1]
-        ? parseInt(parts[1], 10)
-        : fileSize - 1;
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
 
       const chunkSize = end - start + 1;
 
-      const file = fs.createReadStream(videoPath, {
-        start,
-        end
-      });
+      const file = fs.createReadStream(videoPath, { start, end });
 
-      const head = {
+      res.writeHead(206, {
         "Content-Range": `bytes ${start}-${end}/${fileSize}`,
         "Accept-Ranges": "bytes",
         "Content-Length": chunkSize,
         "Content-Type": "video/mp4"
-      };
-
-      res.writeHead(206, head);
+      });
 
       file.pipe(res);
-
     } else {
-
-      const head = {
+      res.writeHead(200, {
         "Content-Length": fileSize,
         "Content-Type": "video/mp4"
-      };
-
-      res.writeHead(200, head);
+      });
 
       fs.createReadStream(videoPath).pipe(res);
-
     }
 
   } catch (err) {
-
     res.status(500).json({ error: err.message });
-
   }
-
 };
 
 
 // ==============================
-// STUDENT: Update Progress
+// UPDATE PROGRESS (FIXED)
 // ==============================
 exports.updateProgress = async (req, res) => {
-
   try {
-
     const { lessonId } = req.body;
 
     const enrollment = await Enrollment.findOne({
@@ -260,7 +267,15 @@ exports.updateProgress = async (req, res) => {
       });
     }
 
-    if (!enrollment.lessonsCompleted.find(l => l.lessonId === lessonId)) {
+    if (!lessonId) {
+      return res.status(400).json({ message: "Lesson ID required" });
+    }
+
+    const alreadyCompleted = enrollment.lessonsCompleted.find(
+      (l) => l.lessonId.toString() === lessonId
+    );
+
+    if (!alreadyCompleted) {
       enrollment.lessonsCompleted.push({ lessonId });
     }
 
@@ -270,32 +285,28 @@ exports.updateProgress = async (req, res) => {
       (enrollment.lessonsCompleted.length / course.content.length) * 100
     );
 
-    if (enrollment.progress === 100) {
+    if (enrollment.progress >= 100) {
       enrollment.completed = true;
     }
 
     await enrollment.save();
 
     res.json({
-      progress: enrollment.progress
+      progress: enrollment.progress,
+      completed: enrollment.completed
     });
 
   } catch (err) {
-
     res.status(500).json({ error: err.message });
-
   }
-
 };
 
 
 // ==============================
-// STUDENT: Issue Certificate
+// ISSUE CERTIFICATE
 // ==============================
 exports.issueCertificate = async (req, res) => {
-
   try {
-
     const enrollment = await Enrollment.findOne({
       student: req.user._id,
       course: req.params.courseId,
@@ -309,7 +320,6 @@ exports.issueCertificate = async (req, res) => {
     }
 
     enrollment.certificateIssued = true;
-
     await enrollment.save();
 
     res.json({
@@ -322,21 +332,16 @@ exports.issueCertificate = async (req, res) => {
     });
 
   } catch (err) {
-
     res.status(500).json({ error: err.message });
-
   }
-
 };
 
 
 // ==============================
-// STUDENT: Download PDF Certificate
+// DOWNLOAD CERTIFICATE (PDF)
 // ==============================
 exports.downloadCertificate = async (req, res) => {
-
   try {
-
     const enrollment = await Enrollment.findOne({
       student: req.user._id,
       course: req.params.courseId,
@@ -349,14 +354,7 @@ exports.downloadCertificate = async (req, res) => {
       });
     }
 
-    enrollment.certificateIssued = true;
-
-    await enrollment.save();
-
-    const doc = new PDFDocument({
-      size: "A4",
-      margin: 50
-    });
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
 
     const fileName = `Certificate_${enrollment.course.title}_${req.user.name}.pdf`;
 
@@ -369,68 +367,16 @@ exports.downloadCertificate = async (req, res) => {
 
     doc.pipe(res);
 
-    doc
-      .fontSize(24)
-      .text("Nakky Academy Certificate of Completion", {
-        align: "center"
-      })
-      .moveDown(2);
-
-    doc
-      .fontSize(18)
-      .text("This certifies that", { align: "center" })
-      .moveDown(1);
-
-    doc
-      .fontSize(22)
-      .text(req.user.name, {
-        align: "center",
-        underline: true
-      })
-      .moveDown(1);
-
-    doc
-      .fontSize(18)
-      .text("has successfully completed the course", {
-        align: "center"
-      })
-      .moveDown(1);
-
-    doc
-      .fontSize(20)
-      .text(enrollment.course.title, {
-        align: "center",
-        underline: true
-      })
-      .moveDown(2);
-
-    doc
-      .fontSize(16)
-      .text(`Date: ${new Date().toLocaleDateString()}`, {
-        align: "center"
-      })
-      .moveDown(1);
-
-    doc
-      .fontSize(16)
-      .text("Instructor: Nakky Academy", {
-        align: "center"
-      })
-      .moveDown(3);
-
-    doc
-      .fontSize(12)
-      .text(
-        "This certificate is proof of successful completion of the course.",
-        { align: "center" }
-      );
+    doc.fontSize(24).text("Nakky Academy Certificate of Completion", { align: "center" }).moveDown(2);
+    doc.fontSize(18).text("This certifies that", { align: "center" }).moveDown(1);
+    doc.fontSize(22).text(req.user.name, { align: "center", underline: true }).moveDown(1);
+    doc.fontSize(18).text("has successfully completed the course", { align: "center" }).moveDown(1);
+    doc.fontSize(20).text(enrollment.course.title, { align: "center", underline: true }).moveDown(2);
+    doc.fontSize(16).text(`Date: ${new Date().toLocaleDateString()}`, { align: "center" });
 
     doc.end();
 
   } catch (err) {
-
     res.status(500).json({ error: err.message });
-
   }
-
 };

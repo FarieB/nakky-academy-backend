@@ -5,7 +5,7 @@ const {
   uploadDocuments,
   verifyEmployee,
   createOrUpdateProfile
-} = require("../controllers/employeeControllers"); // ✅ ensure filename matches
+} = require("../controllers/employeeController"); // ✅ ensure filename matches
 
 const protect = require("../middleware/authMiddleware");
 

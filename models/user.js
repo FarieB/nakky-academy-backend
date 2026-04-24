@@ -24,45 +24,9 @@ const UserSchema = new mongoose.Schema({
   // Worker Profile (Caregivers, Nannies, Helpers, Babysitters, Gardeners)
   // ==============================
 
-  workerType: {
-    type: String,
-    enum: ["caregiver", "nanny", "helper", "babysitter", "gardener"]
-  },
-
-  province: String,
-
-  city: String,
-
-  skills: [String],
-
-  experienceYears: {
-    type: Number,
-    default: 0
-  },
-
-  expectedSalary: Number,
-
-  availability: {
-    type: String,
-    enum: ["full-time", "part-time", "live-in", "live-out"]
-  },
-
-  bio: {
-    type: String,
-    maxlength: 500
-  },
-
-  // ==============================
-// Worker Details
-// ==============================
 workerType: {
   type: String,
   enum: ["caregiver", "nanny", "helper", "babysitter", "gardener"],
-},
-
-yearsExperience: {
-  type: Number,
-  default: 0
 },
 
 skills: [
@@ -72,14 +36,19 @@ skills: [
   }
 ],
 
-expectedSalary: {
-  type: Number
+yearsExperience: {
+  type: Number,
+  default: 0
 },
+
+expectedSalary: Number,
 
 averageRating: {
   type: Number,
   default: 0
 },
+
+  
 
 
   // ==============================

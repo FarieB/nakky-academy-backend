@@ -12,7 +12,7 @@ const {
 // Employer writes review
 router.post("/", protect, leaveReview);
 
-// View caregiver reviews
+// View employee reviews
 router.get("/:employeeId", protect, getEmployeeReviews);
 
 module.exports = router;

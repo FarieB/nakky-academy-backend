@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 // Register
 const register = async (req, res) => {
   try {
-    const { name, email, password, role, phone } = req.body;
+    const { name, email, password, role, phone, workerType } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -20,11 +20,19 @@ const register = async (req, res) => {
       password: hashedPassword,
       role,
       phone,
+      workerType, // include this for employees
     });
 
     await user.save();
 
-    res.status(201).json({ message: "User registered successfully" });
+    // 🔐 Remove password before sending response
+    const { password: pwd, ...userWithoutPassword } = user._doc;
+
+    res.status(201).json({
+      message: "User registered successfully",
+      user: userWithoutPassword,
+    });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -51,7 +59,14 @@ const login = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    res.json({ token, user });
+    // 🔐 Remove password before sending response
+    const { password: pwd, ...userWithoutPassword } = user._doc;
+
+    res.json({
+      token,
+      user: userWithoutPassword,
+    });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

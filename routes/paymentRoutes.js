@@ -7,14 +7,17 @@ const {
   payfastNotify
 } = require("../controllers/paymentController");
 
+
 // ==============================
-// Initiate PayFast Payment
+// STUDENT: Initiate Payment
 // ==============================
 router.post("/course/:enrollmentId", protect, initiateCoursePayment);
 
+
 // ==============================
-// PayFast Notification (NO protect)
+// PAYFAST WEBHOOK (PUBLIC)
 // ==============================
 router.post("/notify", payfastNotify);
+
 
 module.exports = router;

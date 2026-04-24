@@ -1,5 +1,4 @@
 const JobPost = require("../models/JobPost");
-const Employee = require("../models/Employee");
 const JobInvitation = require("../models/JobInvitation");
 const Message = require("../models/Message");
 const Hire = require("../models/Hire");
@@ -39,9 +38,10 @@ exports.getMatchedCandidates = async (req, res) => {
       return res.status(404).json({ message: "Job not found" });
     }
 
-    const candidates = await Employee.find({
-      jobType: job.jobType
-    });
+           const candidates = await User.find({
+            role: "employee",
+            workerType: job.jobType
+        });
 
     const rankedCandidates = candidates.map(candidate => {
 
@@ -61,7 +61,7 @@ exports.getMatchedCandidates = async (req, res) => {
       // =================
       // Experience Score (25)
       // =================
-      if (candidate.yearsOfExperience >= job.requiredExperience) {
+      if (candidate.yearsExperience >= job.requiredExperience) {
         score += 25;
       }
 

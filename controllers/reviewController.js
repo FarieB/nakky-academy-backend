@@ -1,14 +1,13 @@
-const Review = require("../models/Review");
 const User = require("../models/user");
+const Review = require("../models/Review");
+const Hire = require("../models/Hire");
 
 
 // =================================
 // Employer leaves review
 // =================================
 exports.leaveReview = async (req, res) => {
-
   try {
-
     if (req.user.role !== "employer") {
       return res.status(403).json({
         message: "Only employers can leave reviews"
@@ -16,6 +15,48 @@ exports.leaveReview = async (req, res) => {
     }
 
     const { employeeId, rating, comment, jobId } = req.body;
+
+    // Validate rating
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        message: "Rating must be between 1 and 5"
+      });
+    }
+
+    // Check employee exists
+    const employee = await User.findById(employeeId);
+
+    if (!employee || employee.role !== "employee") {
+      return res.status(404).json({
+        message: "Employee not found"
+      });
+    }
+
+    // Optional: ensure employer actually hired this worker
+    const hire = await Hire.findOne({
+      employer: req.user._id,
+      candidate: employeeId,
+      job: jobId
+    });
+
+    if (!hire) {
+      return res.status(403).json({
+        message: "You can only review hired employees"
+      });
+    }
+
+    // Prevent duplicate review per job
+    const existingReview = await Review.findOne({
+      employer: req.user._id,
+      employee: employeeId,
+      job: jobId
+    });
+
+    if (existingReview) {
+      return res.status(400).json({
+        message: "You have already reviewed this employee for this job"
+      });
+    }
 
     const review = await Review.create({
       employer: req.user._id,
@@ -25,28 +66,27 @@ exports.leaveReview = async (req, res) => {
       comment
     });
 
-    // Update caregiver rating
+    // Recalculate average rating
     const reviews = await Review.find({ employee: employeeId });
 
     const avg =
       reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
 
     await User.findByIdAndUpdate(employeeId, {
-      averageRating: avg,
+      averageRating: Number(avg.toFixed(1)),
       totalReviews: reviews.length
     });
 
-    res.json({
+    res.status(201).json({
       message: "Review submitted successfully ⭐",
       review
     });
 
   } catch (error) {
-
-    res.status(500).json({ message: error.message });
-
+    res.status(500).json({
+      message: error.message
+    });
   }
-
 };
 
 
@@ -54,8 +94,14 @@ exports.leaveReview = async (req, res) => {
 // Get caregiver reviews
 // =================================
 exports.getEmployeeReviews = async (req, res) => {
-
   try {
+    const employee = await User.findById(req.params.employeeId);
+
+    if (!employee) {
+      return res.status(404).json({
+        message: "Employee not found"
+      });
+    }
 
     const reviews = await Review.find({
       employee: req.params.employeeId
@@ -63,12 +109,15 @@ exports.getEmployeeReviews = async (req, res) => {
       .populate("employer", "name")
       .sort({ createdAt: -1 });
 
-    res.json(reviews);
+    res.json({
+      averageRating: employee.averageRating,
+      totalReviews: employee.totalReviews,
+      reviews
+    });
 
   } catch (error) {
-
-    res.status(500).json({ message: error.message });
-
+    res.status(500).json({
+      message: error.message
+    });
   }
-
 };

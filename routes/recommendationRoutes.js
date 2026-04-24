@@ -1,6 +1,5 @@
 const express = require("express");
 const router = express.Router();
-
 const protect = require("../middleware/authMiddleware");
 
 const {
@@ -10,13 +9,13 @@ const {
 } = require("../controllers/recommendationController");
 
 
-// Recommend jobs for employees
+// Employee → job recommendations
 router.get("/jobs", protect, recommendJobs);
 
-// Recommend candidates for a job
+// Employer → candidate recommendations
 router.get("/candidates/:jobId", protect, recommendCandidates);
 
-// Recommend courses for students
+// Student → course recommendations
 router.get("/courses", protect, recommendCourses);
 
 module.exports = router;

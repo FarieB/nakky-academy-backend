@@ -1,7 +1,8 @@
 const User = require("../models/user");
 
+
 // ==============================
-// Advanced Worker Search
+// Advanced Worker Search (Optimized)
 // ==============================
 exports.searchWorkersAdvanced = async (req, res) => {
   try {
@@ -17,14 +18,28 @@ exports.searchWorkersAdvanced = async (req, res) => {
       workPreference,
       verifiedBadge,
       minSalary,
-      maxSalary
+      maxSalary,
+      page = 1,
+      limit = 10,
+      sortBy = "rating" // rating | experience | salary
     } = req.query;
 
     const filter = { role: "employee" };
 
+    // ==============================
+    // Filters
+    // ==============================
+
     if (workerType) filter.workerType = workerType;
-    if (province) filter.province = province;
-    if (city) filter.city = city;
+
+    if (province) {
+      filter.province = { $regex: province, $options: "i" };
+    }
+
+    if (city) {
+      filter.city = { $regex: city, $options: "i" };
+    }
+
     if (minExperience || maxExperience) {
       filter.yearsExperience = {};
       if (minExperience) filter.yearsExperience.$gte = Number(minExperience);
@@ -32,26 +47,57 @@ exports.searchWorkersAdvanced = async (req, res) => {
     }
 
     if (skills) {
-      // comma-separated skills
       const skillsArray = skills.split(",").map(s => s.trim());
-      filter.skills = { $all: skillsArray };
+      filter.skills = { $in: skillsArray }; // match ANY skill
     }
 
-    if (minRating) filter.averageRating = { $gte: Number(minRating) };
+    if (minRating) {
+      filter.averageRating = { $gte: Number(minRating) };
+    }
+
     if (availabilityStatus) filter.availabilityStatus = availabilityStatus;
+
     if (workPreference) filter.workPreference = workPreference;
-    if (verifiedBadge) filter.verifiedBadge = verifiedBadge === "true";
+
+    if (verifiedBadge) {
+      filter.verifiedBadge = verifiedBadge === "true";
+    }
+
     if (minSalary || maxSalary) {
       filter.expectedSalary = {};
       if (minSalary) filter.expectedSalary.$gte = Number(minSalary);
       if (maxSalary) filter.expectedSalary.$lte = Number(maxSalary);
     }
 
+    // ==============================
+    // Sorting
+    // ==============================
+    let sort = {};
+
+    if (sortBy === "rating") sort = { averageRating: -1 };
+    if (sortBy === "experience") sort = { yearsExperience: -1 };
+    if (sortBy === "salary") sort = { expectedSalary: 1 };
+
+    // ==============================
+    // Pagination
+    // ==============================
+    const skip = (Number(page) - 1) * Number(limit);
+
     const workers = await User.find(filter)
       .select("-password")
-      .sort({ averageRating: -1 });
+      .sort(sort)
+      .skip(skip)
+      .limit(Number(limit));
 
-    res.json(workers);
+    const total = await User.countDocuments(filter);
+
+    res.json({
+      page: Number(page),
+      totalPages: Math.ceil(total / limit),
+      totalResults: total,
+      results: workers
+    });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

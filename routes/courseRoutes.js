@@ -1,13 +1,17 @@
 const express = require("express");
 const router = express.Router();
-const protect = require("../middleware/authMiddleware");
-const upload = require("../middleware/videoUpload"); // ✅ video upload middleware
 
+const protect = require("../middleware/authMiddleware");
+const upload = require("../middleware/videoUpload");
+
+// Controllers
 const {
   createCourse,
+  getAllCourses,          // ✅ NEW (for frontend course list)
+  getCourseById,          // ✅ NEW (single course view)
   addCourseContent,
-  uploadLessonVideo, // ✅ new
-  streamVideo, // ✅ new
+  uploadLessonVideo,
+  streamVideo,
   enrollCourse,
   getCourseContent,
   updateProgress,
@@ -17,32 +21,59 @@ const {
 
 
 // ==============================
-// ADMIN
+// ADMIN ROUTES
 // ==============================
 
-// Create course
-router.post("/", protect, createCourse);
+// Create course (Admin only)
+router.post("/", protect, async (req, res, next) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Only admins can create courses" });
+  }
+  next();
+}, createCourse);
 
-// Add lesson (text / metadata)
-router.post("/:courseId/content", protect, addCourseContent);
+// Add lesson metadata
+router.post("/:courseId/content", protect, async (req, res, next) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Only admins can add course content" });
+  }
+  next();
+}, addCourseContent);
 
 // Upload lesson video
 router.post(
   "/:courseId/upload-video",
   protect,
+  async (req, res, next) => {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Only admins can upload videos" });
+    }
+    next();
+  },
   upload.single("video"),
   uploadLessonVideo
 );
 
 
 // ==============================
-// STUDENTS
+// PUBLIC / AUTHENTICATED ROUTES
+// ==============================
+
+// Get all courses (for students to browse)
+router.get("/", protect, getAllCourses);
+
+// Get single course details
+router.get("/:courseId", protect, getCourseById);
+
+
+// ==============================
+// STUDENT ROUTES
 // ==============================
 
 // Enroll in course
 router.post("/:courseId/enroll", protect, enrollCourse);
 
-// Access course lessons
+// Get course content (only after enroll logic handled in controller)
 router.get("/:courseId/content", protect, getCourseContent);
 
 // Secure video streaming
@@ -55,10 +86,10 @@ router.get(
 // Update lesson progress
 router.put("/:courseId/progress", protect, updateProgress);
 
-// Issue certificate
+// Issue certificate (generate)
 router.get("/:courseId/certificate", protect, issueCertificate);
 
-// Download PDF certificate
+// Download certificate
 router.get("/:courseId/download-certificate", protect, downloadCertificate);
 
 

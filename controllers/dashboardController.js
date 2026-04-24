@@ -72,6 +72,38 @@ exports.getUnifiedDashboard = async (req, res) => {
     }
 
     // ==========================
+// Employee View
+// ==========================
+if (role === "employee") {
+  const user = await User.findById(userId);
+
+  // Job matches (basic example)
+  const jobs = await JobPost.find().sort({ createdAt: -1 }).limit(10);
+
+  return res.json({
+    role: "employee",
+    profile: user,
+    jobs
+  });
+}
+
+// ==========================
+// Student View
+// ==========================
+if (role === "student") {
+  const enrollments = await Enrollment.find({ user: userId })
+    .populate("course");
+
+  const courses = await Course.find();
+
+  return res.json({
+    role: "student",
+    enrollments,
+    courses
+  });
+}
+
+    // ==========================
     // Admin View
     // ==========================
     if (role === "admin") {

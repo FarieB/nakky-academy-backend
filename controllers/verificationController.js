@@ -3,18 +3,26 @@ const User = require("../models/user");
 
 
 // ==============================
-// Candidate: Submit verification
+// EMPLOYEE: Submit verification
 // ==============================
 exports.submitVerification = async (req, res) => {
-
   try {
-
     if (req.user.role !== "employee") {
       return res.status(403).json({
-        message: "Only candidates can request verification"
+        message: "Only employees can request verification"
       });
     }
 
+    const user = await User.findById(req.user._id);
+
+    // ✅ Must pay verification first
+    if (!user.hasPaidVerificationFee) {
+      return res.status(403).json({
+        message: "Please pay verification fee first"
+      });
+    }
+
+    // ✅ Prevent duplicate submissions
     const existing = await Verification.findOne({
       user: req.user._id
     });
@@ -25,116 +33,130 @@ exports.submitVerification = async (req, res) => {
       });
     }
 
+    // ✅ Validate uploaded files
+    if (!req.files || !req.files["idDocument"]) {
+      return res.status(400).json({
+        message: "ID document is required"
+      });
+    }
+
+    const idDocument = req.files["idDocument"][0].filename;
+    const policeClearance = req.files["policeClearance"]
+      ? req.files["policeClearance"][0].filename
+      : null;
+
+    // ✅ Create verification request
     const verification = await Verification.create({
-
       user: req.user._id,
-      idDocument: req.files["idDocument"][0].filename,
-      policeClearance: req.files["policeClearance"]
-        ? req.files["policeClearance"][0].filename
-        : null
-
+      idDocument,
+      policeClearance,
+      status: "pending"
     });
 
-    await User.findByIdAndUpdate(req.user._id, {
-      verificationStatus: "pending"
-    });
+    // ✅ Update user status
+    user.verificationStatus = "pending";
+    await user.save();
 
-    res.json({
-      message: "Verification submitted successfully",
+    res.status(201).json({
+      message: "Verification submitted successfully ✅",
       verification
     });
 
   } catch (error) {
-
     res.status(500).json({ message: error.message });
-
   }
-
 };
 
 
 
 // ==============================
-// Admin: View verification requests
+// ADMIN: Get all verifications
 // ==============================
 exports.getVerifications = async (req, res) => {
+  try {
+    const verifications = await Verification.find()
+      .populate("user", "name email workerType verificationStatus")
+      .sort({ createdAt: -1 });
 
-  const verifications = await Verification
-  .find()
-  .populate("user");
+    res.json(verifications);
 
-  res.json(verifications);
-
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
 
 
 // ==============================
-// Admin: Approve verification
+// ADMIN: Approve verification
 // ==============================
 exports.approveVerification = async (req, res) => {
-
   try {
-
     const verification = await Verification.findById(req.params.id);
 
     if (!verification) {
-      return res.status(404).json({ message: "Verification not found" });
+      return res.status(404).json({
+        message: "Verification not found"
+      });
+    }
+
+    if (verification.status === "approved") {
+      return res.status(400).json({
+        message: "Already approved"
+      });
     }
 
     verification.status = "approved";
-
     await verification.save();
 
     await User.findByIdAndUpdate(verification.user, {
-
       verificationStatus: "verified",
       verifiedBadge: true
-
     });
 
     res.json({
-      message: "Candidate verified successfully"
+      message: "Candidate verified successfully ✅"
     });
 
   } catch (error) {
-
     res.status(500).json({ message: error.message });
-
   }
-
 };
 
 
 
 // ==============================
-// Admin: Reject verification
+// ADMIN: Reject verification
 // ==============================
 exports.rejectVerification = async (req, res) => {
-
   try {
-
     const verification = await Verification.findById(req.params.id);
 
-    verification.status = "rejected";
+    if (!verification) {
+      return res.status(404).json({
+        message: "Verification not found"
+      });
+    }
 
+    if (verification.status === "rejected") {
+      return res.status(400).json({
+        message: "Already rejected"
+      });
+    }
+
+    verification.status = "rejected";
     await verification.save();
 
     await User.findByIdAndUpdate(verification.user, {
-
       verificationStatus: "rejected",
       verifiedBadge: false
-
     });
 
     res.json({
-      message: "Verification rejected"
+      message: "Verification rejected ❌"
     });
 
   } catch (error) {
-
     res.status(500).json({ message: error.message });
-
   }
-
 };

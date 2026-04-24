@@ -6,28 +6,30 @@ const adminOnly = require("../middleware/adminMiddleware");
 const upload = require("../middleware/documentUpload");
 
 const {
-
-submitVerification,
-getVerifications,
-approveVerification,
-rejectVerification
-
+  submitVerification,
+  getVerifications,
+  approveVerification,
+  rejectVerification
 } = require("../controllers/verificationController");
 
 
-// Candidate submits verification
+// ==============================
+// EMPLOYEE: Submit verification
+// ==============================
 router.post(
-"/submit",
-protect,
-upload.fields([
-{ name: "idDocument", maxCount: 1 },
-{ name: "policeClearance", maxCount: 1 }
-]),
-submitVerification
+  "/submit",
+  protect,
+  upload.fields([
+    { name: "idDocument", maxCount: 1 },
+    { name: "policeClearance", maxCount: 1 }
+  ]),
+  submitVerification
 );
 
 
-// Admin routes
+// ==============================
+// ADMIN: Manage verifications
+// ==============================
 router.get("/", protect, adminOnly, getVerifications);
 
 router.put("/approve/:id", protect, adminOnly, approveVerification);

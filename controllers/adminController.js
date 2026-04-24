@@ -1,5 +1,5 @@
 const User = require("../models/user");
-const Employee = require("../models/Employee");
+const Employee = require("../models/EmployeeProfile");
 const JobPost = require("../models/JobPost");
 const Course = require("../models/Course");
 const Hire = require("../models/Hire");

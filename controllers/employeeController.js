@@ -1,10 +1,9 @@
 const User = require("../models/user");
 
-
 // ==============================
 // Upload Employee Documents
 // ==============================
-exports.uploadDocuments = async (req, res) => {
+const uploadDocuments = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
 
@@ -63,7 +62,7 @@ exports.uploadDocuments = async (req, res) => {
 // ==============================
 // Admin Verify Employee
 // ==============================
-exports.verifyEmployee = async (req, res) => {
+const verifyEmployee = async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({
@@ -108,9 +107,9 @@ exports.verifyEmployee = async (req, res) => {
 
 
 // ==============================
-// Update Professional Profile
+// Create / Update Profile
 // ==============================
-exports.updateEmployeeProfile = async (req, res) => {
+const createOrUpdateProfile = async (req, res) => {
   try {
     if (req.user.role !== "employee") {
       return res.status(403).json({
@@ -124,7 +123,6 @@ exports.updateEmployeeProfile = async (req, res) => {
       });
     }
 
-    // Allowed fields only
     const allowedFields = [
       "workerType",
       "skills",
@@ -156,4 +154,11 @@ exports.updateEmployeeProfile = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+};
+
+
+module.exports = {
+  uploadDocuments,
+  verifyEmployee,
+  createOrUpdateProfile
 };

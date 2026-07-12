@@ -1,44 +1,98 @@
 const mongoose = require("mongoose");
 
-const enrollmentSchema = new mongoose.Schema({
-  student: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true
-  },
-  course: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Course",
-    required: true
-  },
+const EnrollmentSchema = new mongoose.Schema(
+{
+    student: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true
+    },
 
-  paymentStatus: {
-    type: String,
-    enum: ["pending", "paid"],
-    default: "pending"
-  },
+    course: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Course",
+        required: true
+    },
 
-  lessonsCompleted: [
-    {
-      lessonId: String
-    }
-  ],
+    // ==========================
+    // PAYMENT INFORMATION
+    // ==========================
 
-  progress: {
-    type: Number,
-    default: 0
-  },
+    paymentStatus: {
+        type: String,
+        enum: [
+            "pending",
+            "paid",
+            "failed",
+            "cancelled"
+        ],
+        default: "pending"
+    },
 
-  completed: {
-    type: Boolean,
-    default: false
-  },
+    paymentReference: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Payment"
+    },
 
-  certificateIssued: {
-    type: Boolean,
-    default: false
-  }
+    paymentDate: Date,
 
-}, { timestamps: true });
+    coursePrice: {
+        type: Number,
+        default: 0
+    },
 
-module.exports = mongoose.model("Enrollment", enrollmentSchema);
+    // ==========================
+    // LEARNING PROGRESS
+    // ==========================
+
+    lessonsCompleted: [
+        {
+            lessonId: {
+                type: mongoose.Schema.Types.ObjectId
+            },
+
+            completedAt: {
+                type: Date,
+                default: Date.now
+            }
+        }
+    ],
+
+    progress: {
+        type: Number,
+        default: 0
+    },
+
+    lastAccessed: Date,
+
+    // ==========================
+    // COURSE COMPLETION
+    // ==========================
+
+    completed: {
+        type: Boolean,
+        default: false
+    },
+
+    completedAt: Date,
+
+    // ==========================
+    // CERTIFICATE
+    // ==========================
+
+    certificateIssued: {
+        type: Boolean,
+        default: false
+    },
+
+    certificateNumber: String
+
+},
+{
+    timestamps: true
+});
+
+module.exports = mongoose.model(
+    "Enrollment",
+    EnrollmentSchema
+);

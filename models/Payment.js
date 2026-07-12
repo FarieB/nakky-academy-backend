@@ -2,21 +2,40 @@ const mongoose = require("mongoose");
 
 const PaymentSchema = new mongoose.Schema(
 {
+    // ============================================
+    // User Making Payment
+    // ============================================
+
     user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true
     },
 
+    // ============================================
+    // What is being paid for?
+    // ============================================
+
     type: {
         type: String,
-        enum: ["course", "subscription", "verification"],
+        enum: [
+            "subscription",
+            "course",
+            "verification"
+        ],
         required: true
     },
 
+    // Links to Subscription / Course / Verification
+
     referenceId: {
-        type: mongoose.Schema.Types.ObjectId
+        type: mongoose.Schema.Types.ObjectId,
+        required: true
     },
+
+    // ============================================
+    // Amount
+    // ============================================
 
     amount: {
         type: Number,
@@ -28,19 +47,80 @@ const PaymentSchema = new mongoose.Schema(
         default: "ZAR"
     },
 
+    // ============================================
+    // Payment Status
+    // ============================================
+
     status: {
         type: String,
-        enum: ["pending", "paid", "failed"],
+        enum: [
+            "pending",
+            "paid",
+            "failed",
+            "cancelled",
+            "refunded"
+        ],
         default: "pending"
+    },
+
+    // ============================================
+    // Payment Gateway
+    // ============================================
+
+    gateway: {
+        type: String,
+        default: "PayFast"
     },
 
     paymentMethod: {
         type: String,
-        enum: ["card", "eft", "paypal"]
-    }
+        enum: [
+            "payfast",
+            "eft",
+            "voucher"
+        ],
+        default: "payfast"
+    },
+
+    // ============================================
+    // PayFast Details
+    // ============================================
+
+    merchantPaymentId: {
+        type: String
+    },
+
+    gatewayReference: {
+        // pf_payment_id
+        type: String
+    },
+
+    paymentStatus: {
+        type: String
+    },
+
+    paymentDate: Date,
+
+    // ============================================
+    // Audit Trail
+    // Store the full ITN payload
+    // ============================================
+
+    itnPayload: {
+        type: mongoose.Schema.Types.Mixed
+    },
+
+    // ============================================
+    // Future Refund Support
+    // ============================================
+
+    refundedAt: Date,
+
+    refundReason: String
 
 },
-{ timestamps: true }
-);
+{
+    timestamps: true
+});
 
 module.exports = mongoose.model("Payment", PaymentSchema);

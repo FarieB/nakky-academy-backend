@@ -1,23 +1,31 @@
 const express = require("express");
+
 const router = express.Router();
-const protect = require("../middleware/authMiddleware");
 
-const {
-  initiateCoursePayment,
-  payfastNotify
-} = require("../controllers/paymentController");
+const auth = require("../middleware/authMiddleware");
 
+const paymentController = require("../controllers/paymentController");
 
-// ==============================
-// STUDENT: Initiate Payment
-// ==============================
-router.post("/course/:enrollmentId", protect, initiateCoursePayment);
+// Employer subscribes
 
+router.post(
 
-// ==============================
-// PAYFAST WEBHOOK (PUBLIC)
-// ==============================
-router.post("/notify", payfastNotify);
+    "/subscription",
 
+    auth,
+
+    paymentController.createSubscription
+
+);
+
+// PayFast ITN
+
+router.post(
+
+    "/itn",
+
+    paymentController.handleITN
+
+);
 
 module.exports = router;

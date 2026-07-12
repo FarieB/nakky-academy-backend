@@ -1,77 +1,96 @@
 const mongoose = require("mongoose");
 
-const EmployeeProfileSchema = new mongoose.Schema(
-  {
+const EmployeeProfileSchema = new mongoose.Schema({
+
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      unique: true // 🔥 Ensures 1 profile per employee
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true
     },
 
-    province: {
-      type: String,
-      required: true,
-      trim: true
+    workerType: {
+        type: String,
+        enum: [
+            "caregiver",
+            "nanny",
+            "helper",
+            "babysitter",
+            "gardener"
+        ]
     },
 
-    city: {
-      type: String,
-      required: true,
-      trim: true
-    },
+    province: String,
 
-    age: {
-      type: Number,
-      required: true,
-      min: 18
-    },
+    city: String,
+
+    suburb: String,
 
     yearsExperience: {
-      type: Number,
-      required: true,
-      min: 0
+        type: Number,
+        default: 0
     },
 
-    skills: [
-      {
+    expectedSalary: Number,
+
+    skills: [{
+        type: String
+    }],
+
+    workPreference: {
         type: String,
-        trim: true
-      }
-    ],
+        enum: [
+            "full-time",
+            "part-time",
+            "live-in",
+            "live-out"
+        ]
+    },
 
-    qualifications: [
-      {
+    availabilityStatus: {
         type: String,
-        trim: true
-      }
-    ],
-
-    availability: {
-      type: String,
-      enum: ["full-time", "part-time", "live-in", "live-out"],
-      required: true
+        enum: [
+            "available-now",
+            "available-next-week",
+            "available-next-month",
+            "not-available"
+        ],
+        default: "available-now"
     },
 
-    bio: {
-      type: String,
-      maxlength: 500
+    uploadedDocuments: {
+
+        profilePhoto: String,
+
+        idDocument: String,
+
+        policeClearance: String,
+
+        cv: String,
+
+        qualifications: [String],
+
+        references: [String]
+
     },
 
-    rating: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 5
+    averageRating: {
+        type: Number,
+        default: 0
+    },
+
+    totalReviews: {
+        type: Number,
+        default: 0
+    },
+
+    profileCompleted: {
+        type: Boolean,
+        default: false
     }
-  },
-  { timestamps: true }
-);
 
-// 🔎 Indexes for faster matching queries
-EmployeeProfileSchema.index({ province: 1 });
-EmployeeProfileSchema.index({ city: 1 });
-EmployeeProfileSchema.index({ yearsExperience: 1 });
-EmployeeProfileSchema.index({ skills: 1 });
+},
+{
+    timestamps: true
+});
 
 module.exports = mongoose.model("EmployeeProfile", EmployeeProfileSchema);

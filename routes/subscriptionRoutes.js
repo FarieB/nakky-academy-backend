@@ -1,4 +1,5 @@
 const express = require("express");
+
 const router = express.Router();
 
 const protect = require("../middleware/authMiddleware");
@@ -6,33 +7,26 @@ const protect = require("../middleware/authMiddleware");
 const {
   createPlan,
   getPlans,
-  subscribeEmployer,
-  payEmployeeVerification
 } = require("../controllers/subscriptionController");
 
 
 // ==============================
-// ADMIN: Create subscription plan
+// ADMIN: Create plan
 // ==============================
-router.post("/plan", protect, createPlan);
+router.post(
+  "/plan",
+  protect,
+  createPlan
+);
 
 
 // ==============================
-// PUBLIC: View subscription plans
+// PUBLIC: View plans
 // ==============================
-router.get("/plans", getPlans);
-
-
-// ==============================
-// EMPLOYER: Subscribe (monthly)
-// ==============================
-router.post("/subscribe/:planId", protect, subscribeEmployer);
-
-
-// ==============================
-// EMPLOYEE: Pay verification (once-off)
-// ==============================
-router.post("/verify-payment", protect, payEmployeeVerification);
+router.get(
+  "/plans",
+  getPlans
+);
 
 
 module.exports = router;

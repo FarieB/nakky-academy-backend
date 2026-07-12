@@ -4,7 +4,13 @@ const SubscriptionPlanSchema = new mongoose.Schema(
 {
     name: {
         type: String,
-        required: true
+        required: true,
+        unique: true,
+        trim: true
+    },
+
+    description: {
+        type: String
     },
 
     price: {
@@ -22,9 +28,18 @@ const SubscriptionPlanSchema = new mongoose.Schema(
         default: 10
     },
 
-    features: [String]
+    features: [{
+        type: String
+    }],
+
+    isActive: {
+        type: Boolean,
+        default: true
+    }
+
 },
-{ timestamps: true }
-);
+{
+    timestamps: true
+});
 
 module.exports = mongoose.model("SubscriptionPlan", SubscriptionPlanSchema);

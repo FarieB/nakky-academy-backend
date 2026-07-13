@@ -128,8 +128,6 @@ exports.recommendCourses = async (req, res) => {
       });
     }
 
-    const user = await User.findById(req.user._id);
-
     // Simple logic (can improve later with ML)
     let courses = await Course.find();
 

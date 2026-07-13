@@ -1,5 +1,3 @@
-const mongoose = require("mongoose");
-
 const Payment = require("../models/Payment");
 const Subscription = require("../models/Subscription");
 const SubscriptionPlan = require("../models/SubscriptionPlan");

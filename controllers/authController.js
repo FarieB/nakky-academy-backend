@@ -26,7 +26,7 @@ const register = async (req, res) => {
     await user.save();
 
     // 🔐 Remove password before sending response
-    const { password: pwd, ...userWithoutPassword } = user._doc;
+    const { password: _pwd, ...userWithoutPassword } = user._doc;
 
     res.status(201).json({
       message: "User registered successfully",
@@ -60,7 +60,7 @@ const login = async (req, res) => {
     );
 
     // 🔐 Remove password before sending response
-    const { password: pwd, ...userWithoutPassword } = user._doc;
+    const { password: _pwd, ...userWithoutPassword } = user._doc;
 
     res.json({
       token,

@@ -1,4 +1,4 @@
-exports.info = (...args) => {
+exports.info = () => {
   // intentionally empty. info logging disabled
 };
 

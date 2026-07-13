@@ -52,8 +52,6 @@ exports.createSubscription = async (req, res) => {
 
     }
 
-    return null;
-
 };
 
 // =======================================

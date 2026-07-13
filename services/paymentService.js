@@ -74,10 +74,9 @@ const createSubscriptionPayment = async (user, planId) => {
         }
 
     );
-
     // Check for an existing pending subscription
 
-    let pendingSubscription = await Subscription.findOne({
+    const pendingSubscription = await Subscription.findOne({
 
         employer: { $eq: user._id },
 

@@ -39,7 +39,7 @@ exports.getUnifiedDashboard = async (req, res) => {
         .sort({ createdAt: -1 });
 
       // AI Recommendations
-      let recommendations = [];
+      const recommendations = [];
       if (jobs.length > 0) {
         const { getRecommendedCandidates } = require("./jobController");
 

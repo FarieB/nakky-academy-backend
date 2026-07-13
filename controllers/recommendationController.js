@@ -76,7 +76,7 @@ exports.recommendCandidates = async (req, res) => {
     }
 
     // Filter candidates
-    let candidates = await User.find({
+    const candidates = await User.find({
       role: "employee",
       workerType: job.jobType,
       province: job.province
@@ -131,7 +131,7 @@ exports.recommendCourses = async (req, res) => {
     const user = await User.findById(req.user._id);
 
     // Simple logic (can improve later with ML)
-    let courses = await Course.find();
+    const courses = await Course.find();
 
     // Example: prioritize caregiving-related courses
     const ranked = courses.map(course => {

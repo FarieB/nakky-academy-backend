@@ -89,6 +89,18 @@ exports.recommendCandidates = async (req, res) => {
       let score = 0;
 
       // Skills match
+    });
+
+    // Sort best first
+    ranked.sort((a, b) => b.score - a.score);
+
+    res.json(ranked);
+    return null;
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+    return null;
+  }
+};
       if (candidate.skills && job.requiredSkills) {
         const matched = candidate.skills.filter(skill =>
           job.requiredSkills.includes(skill)

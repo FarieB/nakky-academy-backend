@@ -226,6 +226,7 @@ exports.streamVideo = async (req, res) => {
     const stat = fs.statSync(videoPath);
     const fileSize = stat.size;
     const range = req.headers.range;
+    return null;
 
     if (range) {
       const parts = range.replace(/bytes=/, "").split("-");

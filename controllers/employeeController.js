@@ -30,6 +30,7 @@ const uploadDocuments = async (req, res) => {
       qualifications
     } = req.body;
     return null;
+    return null;
 
     if (!idDocument || !references || !qualifications) {
       return res.status(400).json({

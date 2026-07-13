@@ -44,7 +44,7 @@ const activateSubscription = async (userId, subscriptionId) => {
     await Subscription.updateMany(
 
         {
-            employer: userId,
+            employer: { $eq: userId },
             status: "active"
         },
 
@@ -60,9 +60,9 @@ const activateSubscription = async (userId, subscriptionId) => {
 
     await subscription.save();
 
-    await User.findByIdAndUpdate(
+    await User.findOneAndUpdate(
 
-        userId,
+        { _id: { $eq: userId } },
 
         {
 
@@ -184,9 +184,9 @@ const renewSubscription = async (
 
     await subscription.save();
 
-    await User.findByIdAndUpdate(
+    await User.findOneAndUpdate(
 
-        subscription.employer,
+        { _id: { $eq: subscription.employer } },
 
         {
 
@@ -235,7 +235,7 @@ const isSubscriptionActive = async (userId) => {
 
             {
 
-                employer: userId,
+                employer: { $eq: userId },
 
                 status: "active"
 
@@ -309,7 +309,7 @@ const getCurrentSubscription = async (userId) => {
 
         .findOne({
 
-            employer: userId,
+            employer: { $eq: userId },
 
             status: "active"
 

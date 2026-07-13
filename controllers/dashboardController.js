@@ -9,6 +9,25 @@ const Course = require("../models/Course");
 // ==============================
 // Unified Dashboard
 // ==============================
+const dashboardHandlers = {
+  employer: async (userId) => {
+    const jobs = await JobPost.find({ employer: userId }).sort({ createdAt: -1 });
+    const invitations = await JobInvitation.find({ employer: userId })
+      .populate("candidate", "name workerType skills yearsExperience verifiedBadge")
+      .populate("job");
+    const hires = await Hire.find({ employer: userId })
+      .populate("candidate", "name workerType skills yearsExperience verifiedBadge")
+      .populate("job");
+    const messages = await Message.find({
+      $or: [{ sender: userId }, { receiver: userId }],
+    })
+      .populate("sender", "name")
+      .populate("receiver", "name");
+    return { jobs, invitations, hires, messages };
+  },
+  // add other role handlers here...
+};
+
 exports.getUnifiedDashboard = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -17,24 +36,18 @@ exports.getUnifiedDashboard = async (req, res) => {
     // ✅ FIX: fetch user INSIDE function
     const user = await User.findById(userId).select("-password");
 
-    // ==========================
-    // Employer View
-    // ==========================
-    if (role === "employer") {
-      const jobs = await JobPost.find({ employer: userId }).sort({ createdAt: -1 });
+    const handler = dashboardHandlers[role];
+    if (!handler) {
+      return res.status(400).json({ message: "Invalid role" });
+    }
 
-      const invitations = await JobInvitation.find({ employer: userId })
-        .populate("candidate", "name workerType skills yearsExperience verifiedBadge")
-        .populate("job");
-
-      const hires = await Hire.find({ employer: userId })
-        .populate("candidate", "name workerType skills yearsExperience verifiedBadge")
-        .populate("job");
-
-      const messages = await Message.find({
-        $or: [{ sender: userId }, { receiver: userId }],
-      })
-        .populate("sender", "name")
+    const data = await handler(userId);
+    res.json({ user, ...data });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
         .populate("receiver", "name")
         .sort({ createdAt: -1 });
 

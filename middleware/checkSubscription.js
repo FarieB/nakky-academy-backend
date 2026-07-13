@@ -6,24 +6,15 @@ const checkSubscription = async (req, res, next) => {
 
         const user = req.user;
 
-        if (!user) {
+        const checks = [
+            { condition: !user, status: 401, message: "Authentication required." },
+            { condition: user && user.role !== "employer", status: 403, message: "Only employers can perform this action." }
+        ];
 
-            return res.status(401).json({
-
-                message: "Authentication required."
-
-            });
-
-        }
-
-        if (user.role !== "employer") {
-
-            return res.status(403).json({
-
-                message: "Only employers can perform this action."
-
-            });
-
+        for (const { condition, status, message } of checks) {
+            if (condition) {
+                return res.status(status).json({ message });
+            }
         }
 
         if (user.subscriptionStatus !== "active") {

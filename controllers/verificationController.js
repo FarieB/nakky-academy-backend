@@ -7,30 +7,38 @@ const User = require("../models/user");
 // ==============================
 exports.submitVerification = async (req, res) => {
   try {
-    if (req.user.role !== "employee") {
-      return res.status(403).json({
+    const errorCases = [
+      {
+        condition: req.user.role !== "employee",
+        status: 403,
         message: "Only employees can request verification"
-      });
-    }
+      }
+    ];
 
     const user = await User.findById(req.user._id);
 
     // ✅ Must pay verification first
-    if (!user.hasPaidVerificationFee) {
-      return res.status(403).json({
-        message: "Please pay verification fee first"
-      });
-    }
+    errorCases.push({
+      condition: !user.hasPaidVerificationFee,
+      status: 403,
+      message: "Please pay verification fee first"
+    });
 
     // ✅ Prevent duplicate submissions
     const existing = await Verification.findOne({
       user: req.user._id
     });
+    errorCases.push({
+      condition: !!existing,
+      status: 400,
+      message: "Verification already submitted"
+    });
 
-    if (existing) {
-      return res.status(400).json({
-        message: "Verification already submitted"
-      });
+    for (const { condition, status, message } of errorCases) {
+      if (condition) {
+        return res.status(status).json({ message });
+      }
+    }
     }
 
     // ✅ Validate uploaded files

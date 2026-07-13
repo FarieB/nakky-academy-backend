@@ -30,6 +30,26 @@ const uploadDocuments = async (req, res) => {
       qualifications
     } = req.body;
 
+    const docRequirements = {
+      idDocument: "ID document is required",
+      policeClearance: "Police clearance is required",
+      references: "References are required",
+      qualifications: "Qualifications are required"
+    };
+
+    const missing = Object.keys(docRequirements).find(key => !req.body[key]);
+    if (missing) {
+      return res.status(400).json({ message: docRequirements[missing] });
+    }
+
+    // continue with document upload logic...
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { uploadDocuments };
+
     if (!idDocument || !references || !qualifications) {
       return res.status(400).json({
         message: "Required: ID document, references, qualifications"
@@ -64,30 +84,38 @@ const uploadDocuments = async (req, res) => {
 // ==============================
 const verifyEmployee = async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({
-        message: "Admin access required"
-      });
+    const errorResponses = {
+      notAdmin: { status: 403, message: "Admin access required" },
+      userNotFound: { status: 404, message: "User not found" },
+      notEmployee: { status: 400, message: "Not an employee" },
+      documentsNotUploaded: { status: 400, message: "Documents not uploaded" }
+    };
+
+    const preChecks = {
+      notAdmin: () => req.user.role === "admin"
+    };
+
+    for (const [key, check] of Object.entries(preChecks)) {
+      if (!check()) {
+        const err = errorResponses[key];
+        return res.status(err.status).json({ message: err.message });
+      }
     }
 
     const user = await User.findById(req.params.id);
 
-    if (!user) {
-      return res.status(404).json({
-        message: "User not found"
-      });
-    }
+    const postChecks = {
+      userNotFound: () => user,
+      notEmployee: () => user.role === "employee",
+      documentsNotUploaded: () => user.uploadedDocuments?.idDocument
+    };
 
-    if (user.role !== "employee") {
-      return res.status(400).json({
-        message: "Not an employee"
-      });
+    for (const [key, check] of Object.entries(postChecks)) {
+      if (!check()) {
+        const err = errorResponses[key];
+        return res.status(err.status).json({ message: err.message });
+      }
     }
-
-    if (!user.uploadedDocuments?.idDocument) {
-      return res.status(400).json({
-        message: "Documents not uploaded"
-      });
     }
 
     user.isVerified = true;

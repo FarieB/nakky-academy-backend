@@ -24,24 +24,22 @@ exports.recommendJobs = async (req, res) => {
 
     // Score jobs
     const scoredJobs = jobs.map(job => {
-      let score = 0;
+      // Scoring rules lookup
+      const scoreRules = {
+        city: job.city === user.city ? 20 : 0,
+        province: job.province === user.province ? 10 : 0,
+        experience: user.yearsExperience >= job.requiredExperience ? 25 : 0
+      };
 
-      // Location match
-      if (job.city === user.city) score += 20;
-      if (job.province === user.province) score += 10;
+      let score = Object.values(scoreRules).reduce((sum, val) => sum + val, 0);
 
-      // Experience match
-      if (user.yearsExperience >= job.requiredExperience) {
-        score += 25;
-      }
+      const skillsCount = (user.skills && job.requiredSkills)
+        ? user.skills.filter(skill =>
+            job.requiredSkills.includes(skill)
+          ).length
+        : 0;
 
-      // Skills match
-      if (user.skills && job.requiredSkills) {
-        const matched = user.skills.filter(skill =>
-          job.requiredSkills.includes(skill)
-        );
-        score += matched.length * 10;
-      }
+      score += skillsCount * 10;
 
       return { job, score };
     });

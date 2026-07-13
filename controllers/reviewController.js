@@ -8,28 +8,30 @@ const Hire = require("../models/Hire");
 // =================================
 exports.leaveReview = async (req, res) => {
   try {
-    if (req.user.role !== "employer") {
-      return res.status(403).json({
-        message: "Only employers can leave reviews"
-      });
-    }
-
     const { employeeId, rating, comment, jobId } = req.body;
-
-    // Validate rating
-    if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({
-        message: "Rating must be between 1 and 5"
-      });
-    }
-
-    // Check employee exists
     const employee = await User.findById(employeeId);
 
-    if (!employee || employee.role !== "employee") {
-      return res.status(404).json({
+    const validators = {
+      role: {
+        check: () => req.user.role === "employer",
+        status: 403,
+        message: "Only employers can leave reviews"
+      },
+      rating: {
+        check: () => rating && rating >= 1 && rating <= 5,
+        status: 400,
+        message: "Rating must be between 1 and 5"
+      },
+      employee: {
+        check: () => employee && employee.role === "employee",
+        status: 404,
         message: "Employee not found"
-      });
+      }
+    };
+
+    const error = Object.values(validators).find(v => !v.check());
+    if (error) {
+      return res.status(error.status).json({ message: error.message });
     }
 
     // Optional: ensure employer actually hired this worker

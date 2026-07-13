@@ -43,55 +43,32 @@ exports.getMatchedCandidates = async (req, res) => {
             workerType: job.jobType
         });
 
+    const scoringRules = {
+      province: (c, j) => (c.province === j.province ? 15 : 0),
+      city: (c, j) => (c.city === j.city ? 10 : 0),
+      experience: (c, j) => (c.yearsExperience >= j.requiredExperience ? 25 : 0),
+      skills: (c, j) => {
+        if (c.skills && j.requiredSkills) {
+          const matchedSkills = c.skills.filter(skill =>
+            j.requiredSkills.includes(skill)
+          );
+          return (matchedSkills.length / j.requiredSkills.length) * 35;
+        }
+        return 0;
+      },
+      age: (c, j) => (c.age >= j.minAge && c.age <= j.maxAge ? 15 : 0)
+    };
+
     const rankedCandidates = candidates.map(candidate => {
-
-      let score = 0;
-
-      // =================
-      // Location Score (25)
-      // =================
-      if (candidate.province === job.province) {
-        score += 15;
-      }
-
-      if (candidate.city === job.city) {
-        score += 10;
-      }
-
-      // =================
-      // Experience Score (25)
-      // =================
-      if (candidate.yearsExperience >= job.requiredExperience) {
-        score += 25;
-      }
-
-      // =================
-      // Skills Score (35)
-      // =================
-      if (candidate.skills && job.requiredSkills) {
-
-        const matchedSkills = candidate.skills.filter(skill =>
-          job.requiredSkills.includes(skill)
-        );
-
-        const skillScore =
-          (matchedSkills.length / job.requiredSkills.length) * 35;
-
-        score += skillScore;
-      }
-
-      // =================
-      // Age Score (15)
-      // =================
-      if (candidate.age >= job.minAge && candidate.age <= job.maxAge) {
-        score += 15;
-      }
+      const score = Object.values(scoringRules).reduce(
+        (total, ruleFn) => total + ruleFn(candidate, job),
+        0
+      );
 
       return {
         candidate,
         matchScore: Math.round(score)
       };
-
     });
 
     // Sort best matches first
@@ -202,10 +179,15 @@ exports.getRecommendedCandidates = async (req, res) => {
     };
 
     // Age filter
-    if (job.minAge || job.maxAge) {
-      filter.age = {};
-      if (job.minAge) filter.age.$gte = job.minAge;
-      if (job.maxAge) filter.age.$lte = job.maxAge;
+    const ageOperators = { $gte: job.minAge, $lte: job.maxAge };
+    const ageFilter = Object.entries(ageOperators).reduce((acc, [operator, value]) => {
+      if (value != null) {
+        acc[operator] = value;
+      }
+      return acc;
+    }, {});
+    if (Object.keys(ageFilter).length > 0) {
+      filter.age = ageFilter;
     }
 
     // Skills filter: match at least one required skill

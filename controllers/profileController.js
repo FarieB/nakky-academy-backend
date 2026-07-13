@@ -92,15 +92,41 @@ exports.searchWorkers = async (req, res) => {
       role: "employee"
     };
 
-    // Basic filters
-    if (workerType) filter.workerType = workerType;
-    if (province) filter.province = province;
-    if (availabilityStatus) filter.availabilityStatus = availabilityStatus;
-    if (workPreference) filter.workPreference = workPreference;
+    // Basic filters mapping
+    const directFilters = {
+      workerType,
+      province,
+      availabilityStatus,
+      workPreference
+    };
+    Object.entries(directFilters).forEach(([key, value]) => {
+      if (value) filter[key] = value;
+    });
 
     // Rating filter
     if (minRating) {
       filter.averageRating = { $gte: Number(minRating) };
+    }
+
+    // Experience filter
+    if (minExperience || maxExperience) {
+      filter.experience = {};
+      if (minExperience) filter.experience.$gte = Number(minExperience);
+      if (maxExperience) filter.experience.$lte = Number(maxExperience);
+    }
+
+    // Keyword filter
+    if (keyword) {
+      filter.$text = { $search: keyword };
+    }
+
+    const workers = await User.find(filter).select("-password");
+    return res.json(workers);
+
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
     }
 
     // Experience filter

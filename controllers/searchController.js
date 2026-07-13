@@ -29,6 +29,37 @@ exports.searchWorkersAdvanced = async (req, res) => {
     // ==============================
     // Filters
     // ==============================
+    const simpleFilterMap = {
+      workerType: "workerType",
+      province: "province",
+      city: "city",
+      availabilityStatus: "availabilityStatus",
+      workPreference: "workPreference"
+    };
+    Object.keys(simpleFilterMap).forEach(key => {
+      if (req.query[key]) {
+        filter[simpleFilterMap[key]] = req.query[key];
+      }
+    });
+    if (verifiedBadge !== undefined) {
+      filter.verifiedBadge = verifiedBadge === "true";
+    }
+    if (skills) {
+      filter.skills = { $all: skills.split(",") };
+    }
+    if (minExperience || maxExperience) {
+      filter.experience = {};
+      if (minExperience) filter.experience.$gte = Number(minExperience);
+      if (maxExperience) filter.experience.$lte = Number(maxExperience);
+    }
+    if (minSalary || maxSalary) {
+      filter.salary = {};
+      if (minSalary) filter.salary.$gte = Number(minSalary);
+      if (maxSalary) filter.salary.$lte = Number(maxSalary);
+    }
+    if (minRating) {
+      filter.rating = { $gte: Number(minRating) };
+    }
 
     if (workerType) filter.workerType = workerType;
 

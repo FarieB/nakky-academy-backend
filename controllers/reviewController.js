@@ -35,8 +35,8 @@ exports.leaveReview = async (req, res) => {
     // Optional: ensure employer actually hired this worker
     const hire = await Hire.findOne({
       employer: req.user._id,
-      candidate: employeeId,
-      job: jobId
+      candidate: { $eq: employeeId },
+      job: { $eq: jobId }
     });
 
     if (!hire) {
@@ -48,8 +48,8 @@ exports.leaveReview = async (req, res) => {
     // Prevent duplicate review per job
     const existingReview = await Review.findOne({
       employer: req.user._id,
-      employee: employeeId,
-      job: jobId
+      employee: { $eq: employeeId },
+      job: { $eq: jobId }
     });
 
     if (existingReview) {
@@ -72,7 +72,7 @@ exports.leaveReview = async (req, res) => {
     const avg =
       reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
 
-    await User.findByIdAndUpdate(employeeId, {
+    await User.findOneAndUpdate({ _id: { $eq: employeeId } }, {
       averageRating: Number(avg.toFixed(1)),
       totalReviews: reviews.length
     });

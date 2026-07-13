@@ -134,8 +134,8 @@ exports.enrollCourse = async (req, res) => {
     }
 
     const existing = await Enrollment.findOne({
-      student: req.user._id,
-      course: req.params.courseId
+      student: { $eq: req.user._id },
+      course: { $eq: req.params.courseId }
     });
 
     if (existing) {
@@ -165,8 +165,8 @@ exports.enrollCourse = async (req, res) => {
 exports.getCourseContent = async (req, res) => {
   try {
     const enrollment = await Enrollment.findOne({
-      student: req.user._id,
-      course: req.params.courseId,
+      student: { $eq: req.user._id },
+      course: { $eq: req.params.courseId },
       paymentStatus: "paid"
     }).populate("course");
 
@@ -256,8 +256,8 @@ exports.updateProgress = async (req, res) => {
     const { lessonId } = req.body;
 
     const enrollment = await Enrollment.findOne({
-      student: req.user._id,
-      course: req.params.courseId,
+      student: { $eq: req.user._id },
+      course: { $eq: req.params.courseId },
       paymentStatus: "paid"
     });
 
@@ -308,8 +308,8 @@ exports.updateProgress = async (req, res) => {
 exports.issueCertificate = async (req, res) => {
   try {
     const enrollment = await Enrollment.findOne({
-      student: req.user._id,
-      course: req.params.courseId,
+      student: { $eq: req.user._id },
+      course: { $eq: req.params.courseId },
       completed: true
     }).populate("course");
 
@@ -343,8 +343,8 @@ exports.issueCertificate = async (req, res) => {
 exports.downloadCertificate = async (req, res) => {
   try {
     const enrollment = await Enrollment.findOne({
-      student: req.user._id,
-      course: req.params.courseId,
+      student: { $eq: req.user._id },
+      course: { $eq: req.params.courseId },
       completed: true
     }).populate("course");
 

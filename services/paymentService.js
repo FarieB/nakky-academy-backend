@@ -29,7 +29,7 @@ const createSubscriptionPayment = async (user, planId) => {
 
     const activeSubscription = await Subscription.findOne({
 
-        employer: user._id,
+        employer: { $eq: user._id },
 
         status: "active",
 
@@ -57,7 +57,7 @@ const createSubscriptionPayment = async (user, planId) => {
 
         {
 
-            employer: user._id,
+            employer: { $eq: user._id },
 
             status: "pending",
 
@@ -81,7 +81,7 @@ const createSubscriptionPayment = async (user, planId) => {
 
     let pendingSubscription = await Subscription.findOne({
 
-        employer: user._id,
+        employer: { $eq: user._id },
 
         status: "pending"
 

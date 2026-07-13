@@ -259,46 +259,35 @@ exports.streamVideo = async (req, res) => {
 
 
 // ==============================
-// UPDATE PROGRESS (FIXED)
+// UPDATE PROGRESS
 // ==============================
 exports.updateProgress = async (req, res) => {
   try {
     const { lessonId } = req.body;
 
     const enrollment = await Enrollment.findOne({
-      student: { $eq: req.user._id },
-      course: { $eq: req.params.courseId },
+      student: req.user._id,
+      course: req.params.courseId,
       paymentStatus: "paid"
     });
 
-    const conditions = {
-      noEnrollment: !enrollment,
-      noLessonId: !lessonId,
-      alreadyCompleted: enrollment && enrollment.lessonsCompleted.some(
-        (l) => l.lessonId.toString() === lessonId
-      )
-    };
-
-    const responseMap = {
-      noEnrollment: { status: 403, message: "Not enrolled or unpaid" },
-      noLessonId: { status: 400, message: "Lesson ID required" },
-      alreadyCompleted: { status: 200, message: "Lesson already completed" }
-    };
-
-    for (const [key, condition] of Object.entries(conditions)) {
-      if (condition) {
-        const { status, message } = responseMap[key];
-        return res.status(status).json({ message });
-      }
+    if (!enrollment) {
+      return res.status(403).json({
+        message: "Not enrolled or payment not completed."
+      });
     }
 
-    enrollment.lessonsCompleted.push({ lessonId });
-    await enrollment.save();
-    return res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+    if (!lessonId) {
+      return res.status(400).json({
+        message: "Lesson ID is required."
+      });
+    }
+
+    const alreadyCompleted = enrollment.lessonsCompleted.some(
+      (lesson) => lesson.lessonId.toString() === lessonId
+    );
+
+    if (!alreadyCompleted) {
       enrollment.lessonsCompleted.push({ lessonId });
     }
 
@@ -318,14 +307,13 @@ exports.updateProgress = async (req, res) => {
       progress: enrollment.progress,
       completed: enrollment.completed
     });
-    return null;
 
   } catch (err) {
-    res.status(500).json({ error: err.message });
-    return null;
+    res.status(500).json({
+      error: err.message
+    });
   }
 };
-
 
 // ==============================
 // ISSUE CERTIFICATE

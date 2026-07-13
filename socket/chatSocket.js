@@ -43,6 +43,7 @@ module.exports = (io) => {
 
 
     socket.on("disconnect", () => {
+        // empty because no special handling is required on disconnect
     });
 
   });

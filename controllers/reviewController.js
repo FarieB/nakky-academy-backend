@@ -34,6 +34,7 @@ exports.leaveReview = async (req, res) => {
 
     const postValidators = {
       invalidEmployee: {
+const createReview = async (req, res) => {
         check: () => !employee || employee.role !== "employee",
         status: 404,
         message: "Employee not found"
@@ -58,33 +59,33 @@ exports.leaveReview = async (req, res) => {
   return null;
 };
 
-    // Optional: ensure employer actually hired this worker
-    const hire = await Hire.findOne({
-      employer: req.user._id,
-      candidate: { $eq: employeeId },
-      job: { $eq: jobId }
+  // Optional: ensure employer actually hired this worker
+  const hire = await Hire.findOne({
+    employer: req.user._id,
+    candidate: { $eq: employeeId },
+    job: { $eq: jobId }
+  });
+
+  if (!hire) {
+    return res.status(403).json({
+      message: "You can only review hired employees"
     });
+  }
 
-    if (!hire) {
-      return res.status(403).json({
-        message: "You can only review hired employees"
-      });
-    }
+  // Prevent duplicate review per job
+  const existingReview = await Review.findOne({
+    employer: req.user._id,
+    employee: { $eq: employeeId },
+    job: { $eq: jobId }
+  });
 
-    // Prevent duplicate review per job
-    const existingReview = await Review.findOne({
-      employer: req.user._id,
-      employee: { $eq: employeeId },
-      job: { $eq: jobId }
+  if (existingReview) {
+    return res.status(400).json({
+      message: "You have already reviewed this employee for this job"
     });
+  }
 
-    if (existingReview) {
-      return res.status(400).json({
-        message: "You have already reviewed this employee for this job"
-      });
-    }
-
-    const review = await Review.create({
+  const review = await Review.create({
       employer: req.user._id,
       employee: employeeId,
       job: jobId,

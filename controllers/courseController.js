@@ -154,7 +154,6 @@ exports.enrollCourse = async (req, res) => {
       course: req.params.courseId,
       paymentStatus: "pending"
     });
-
     res.status(201).json({
       message: "Enrollment created. Please complete payment.",
       enrollment
@@ -176,6 +175,15 @@ exports.getCourseContent = async (req, res) => {
     const enrollment = await Enrollment.findOne({
       student: { $eq: req.user._id },
       course: { $eq: req.params.courseId },
+    });
+
+    // ...additional logic for sending content...
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
 // ==============================
 // STREAM VIDEO (SAFE VERSION)
 // ==============================

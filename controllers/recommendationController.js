@@ -97,7 +97,6 @@ exports.recommendCandidates = async (req, res) => {
     res.status(500).json({ message: error.message });
     return null;
   }
-};
       if (candidate.skills && job.requiredSkills) {
         const matched = candidate.skills.filter(skill =>
           job.requiredSkills.includes(skill)
@@ -125,21 +124,6 @@ exports.recommendCandidates = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
-
-
-// =================================
-// Recommend Courses to Students
-// =================================
-exports.recommendCourses = async (req, res) => {
-  try {
-    if (req.user.role !== "student") {
-      return res.status(403).json({
-        message: "Students only"
-      });
-    }
-
-    // Simple logic (can improve later with ML)
     const courses = await Course.find();
 
     // Example: prioritize caregiving-related courses

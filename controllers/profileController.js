@@ -74,6 +74,8 @@ exports.searchWorkers = async (req, res) => {
       if (value) filter[key] = value;
     });
 
+const getWorkers = async (req, res) => {
+  try {
     // Rating filter
     if (minRating) {
       filter.averageRating = { $gte: Number(minRating) };
@@ -99,32 +101,6 @@ exports.searchWorkers = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-    }
-
-    // Experience filter
-    if (minExperience || maxExperience) {
-      filter.yearsExperience = {};
-
-      if (minExperience) {
-        filter.yearsExperience.$gte = Number(minExperience);
-      }
-
-      if (maxExperience) {
-        filter.yearsExperience.$lte = Number(maxExperience);
-      }
-    }
-
-    // Keyword search (name or skills)
-    if (keyword) {
-      filter.$or = [
-        { name: { $regex: keyword, $options: "i" } },
-        { skills: { $in: [new RegExp(keyword, "i")] } }
-      ];
-    }
-
-    const workers = await User.find(filter)
-      .select("-password")
-      .sort({ averageRating: -1, yearsExperience: -1 });
 
     return res.json(workers);
 

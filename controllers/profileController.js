@@ -75,6 +75,7 @@ exports.searchWorkers = (req, res) => {
     });
 
 const getWorkers = async (req, res) => {
+const getLabWorkers = async (req, res) => {
   try {
     // Rating filter
     if (minRating) {

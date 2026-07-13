@@ -64,31 +64,24 @@ exports.recommendCandidates = async (req, res) => {
   try {
     if (req.user.role !== "employer") {
       return res.status(403).json({
-        message: "Only employers can view candidate recommendations"
-      });
-    }
-
-    const job = await JobPost.findById(req.params.jobId);
-
-    if (!job) {
-      return res.status(404).json({ message: "Job not found" });
-    }
-
-    // Filter candidates
-    const candidates = await User.find({
-      role: "employee",
-      workerType: job.jobType,
-      province: job.province
+      message: "Only employers can view candidate recommendations"
     });
+  }
 
-    // Score candidates
-    const ranked = candidates.map(candidate => {
-      let score = 0;
+  const job = await JobPost.findById(req.params.jobId);
 
-      // Skills match
-    });
+  if (!job) {
+    return res.status(404).json({ message: "Job not found" });
+  }
 
-    // Sort best first
+  // Filter candidates
+  const candidates = await User.find({
+    role: "employee",
+    workerType: job.jobType,
+    province: job.province
+  });
+
+  // Score candidates and sort best first
   const ranked = candidates.map((candidate) => {
     let score = 0;
 

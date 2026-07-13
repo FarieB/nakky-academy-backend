@@ -10,13 +10,13 @@ exports.submitVerification = async (req, res) => {
     if (req.user.role !== "employee") {
       return res.status(403).json({
         message: "Only employees can request verification"
-      });
-    }
+    });
+  }
 
-    const user = await User.findById(req.user._id);
+  const user = await User.findById(req.user._id);
 
-    // ✅ Must pay verification first
-async (req, res) => {
+  // ✅ Must pay verification first
+  const mustPayVerification = async (req, res) => {
     if (!user.hasPaidVerificationFee) {
       return res.status(403).json({
         message: "Please pay verification fee first"
@@ -35,32 +35,33 @@ async (req, res) => {
     }
 
     // Continue with submission logic here
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      message: "Server error"
+  };
+} catch (error) {
+  console.error(error);
+  res.status(500).json({
+    message: "Server error"
+  });
+}
+
+    return res.status(400).json({
+      message: "ID document is required"
     });
   }
 
-      return res.status(400).json({
-        message: "ID document is required"
-      });
-    }
+  const idDocument = req.files.idDocument[0].filename;
+  const policeClearance = req.files.policeClearance
+    ? req.files.policeClearance[0].filename
+    : null;
 
-    const idDocument = req.files.idDocument[0].filename;
-    const policeClearance = req.files.policeClearance
-      ? req.files.policeClearance[0].filename
-      : null;
+  // ✅ Create verification request
+  const verification = await Verification.create({
+    user: req.user._id,
+    idDocument,
+    policeClearance,
+    status: "pending"
+  });
 
-    // ✅ Create verification request
-    const verification = await Verification.create({
-      user: req.user._id,
-      idDocument,
-      policeClearance,
-      status: "pending"
-    });
-
-    // ✅ Update user status
+  // ✅ Update user status
     user.verificationStatus = "pending";
     await user.save();
 

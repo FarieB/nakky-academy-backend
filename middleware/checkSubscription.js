@@ -7,25 +7,27 @@ const checkSubscription = async (req, res, next) => {
         const user = req.user;
         async (req, res, next) => {
             const errorMap = {
-                noUser: { status: 401, message: "Authentication required." },
-                notEmployer: { status: 403, message: "Only employers can perform this action." }
-            };
-
-            const errorKey = !user ? "noUser" : (user.role !== "employer" ? "notEmployer" : null);
-            if (errorKey) {
-                const { status, message } = errorMap[errorKey];
-                return res.status(status).json({ message });
-            }
-
-            if (user.subscriptionStatus !== "active") {
-                return res.status(403).json({
-                    message: "Please subscribe before posting jobs."
-                });
-            }
-
-            return null;
+const checkSubscription = async (req, res, next) => {
+    try {
+        const { user } = req;
+        const errorMap = {
+            noUser: { status: 401, message: "Authentication required." },
+            notEmployer: { status: 403, message: "Only employers can perform this action." }
         };
 
+        const errorKey = !user ? "noUser" : (user.role !== "employer" ? "notEmployer" : null);
+        if (errorKey) {
+            const { status, message } = errorMap[errorKey];
+            return res.status(status).json({ message });
+        }
+
+        if (user.subscriptionStatus !== "active") {
+            return res.status(403).json({
+                message: "Please subscribe before posting jobs."
+            });
+        }
+
+        return null;
     } catch (error) {
         next(error);
         return null;

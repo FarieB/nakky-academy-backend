@@ -219,15 +219,15 @@ exports.streamVideo = async (req, res) => {
     const fileSize = stat.size;
     const range = req.headers.range;
     return null;
-
   } catch (err) {
     res.status(500).json({ error: err.message });
     return null;
   }
 };
 
-    if (range) {
 exports.streamVideo = async (req, res) => {
+  try {
+    if (range) {
       const parts = range.replace(/bytes=/, "").split("-");
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
@@ -252,7 +252,6 @@ exports.streamVideo = async (req, res) => {
 
       fs.createReadStream(videoPath).pipe(res);
     }
-
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

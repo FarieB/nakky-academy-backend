@@ -79,7 +79,6 @@ const verifyEmployee = async (req, res) => {
     }
 
     const user = await User.findById(req.params.id);
-    ];
     const router = require('express').Router();
     router.post('/verify', async (req, res) => {
       try {

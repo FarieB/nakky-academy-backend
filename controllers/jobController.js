@@ -201,6 +201,7 @@ exports.getRecommendedCandidates = async (req, res) => {
       role: "employee",
       workerType: job.jobType,
       province: job.province,
+const findCandidates = async (req, res) => {
       yearsExperience: { $gte: job.requiredExperience },
       verifiedBadge: true
     };

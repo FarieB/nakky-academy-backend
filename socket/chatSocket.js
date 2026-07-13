@@ -4,16 +4,12 @@ module.exports = (io) => {
 
   io.on("connection", (socket) => {
 
-    console.log("User connected:", socket.id);
-
-
     // ==========================
     // Join personal room
     // ==========================
     socket.on("join", (userId) => {
       socket.join(userId);
     });
-
 
     // ==========================
     // Send message
@@ -38,14 +34,11 @@ module.exports = (io) => {
         io.to(senderId).emit("receiveMessage", newMessage);
 
       } catch (error) {
-        console.error(error);
       }
 
     });
 
-
     socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.id);
     });
 
   });

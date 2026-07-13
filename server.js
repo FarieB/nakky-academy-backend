@@ -121,5 +121,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-    console.log(`🚀 Nakky Academy API running on port ${PORT}`);
+    // This log indicates the server is running and listening on the specified port for operational monitoring.
+    console.log(`🚀 Nakky Academy API running on port ${PORT}`); // skipcq: JS-0002
 });

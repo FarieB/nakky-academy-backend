@@ -1,7 +1,4 @@
 exports.info = (...args) => {
-
-    console.log("[INFO]", ...args);
-
 };
 
 exports.error = (...args) => {

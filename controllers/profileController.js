@@ -101,12 +101,3 @@ const getWorkers = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-
-    return res.json(workers);
-
-  } catch (error) {
-    return res.status(500).json({
-      message: error.message
-    });
-  }
-};

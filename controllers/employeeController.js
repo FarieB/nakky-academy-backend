@@ -107,6 +107,7 @@ const verifyEmployee = async (req, res) => {
         message: "References not uploaded"
       }
     ];
+    const router = require('express').Router();
     router.post('/verify', async (req, res) => {
       try {
         const validations = [

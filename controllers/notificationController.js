@@ -23,7 +23,7 @@ exports.getMyNotifications = async (req, res) => {
 exports.markAsRead = async (req, res) => {
   try {
     const notification = await Notification.findOne({
-      _id: req.params.id,
+      _id: { $eq: req.params.id },
       user: req.user._id,
     });
 

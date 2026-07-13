@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+const cryptoLib = require("crypto");
 const querystring = require("querystring");
 const axios = require("axios");
 const payfast = require("../config/payfast");
@@ -21,7 +21,7 @@ exports.generateSignature = (data) => {
                 data[key] !== ""
             ) {
 
-                pfOutput += `${key}=${encodeURIComponent(data[key]).replace(/%20/g, "+")}&`;
+                pfOutput += `${key}=${encodeURIComponent(data[key]).replace(/%20/g, "+")} &`;
 
             }
 

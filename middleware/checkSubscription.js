@@ -26,6 +26,8 @@ const checkSubscription = async (req, res, next) => {
 
         }
 
+        return null;
+
         if (user.subscriptionStatus !== "active") {
 
             return res.status(403).json({

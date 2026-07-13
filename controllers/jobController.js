@@ -5,6 +5,7 @@ const Hire = require("../models/Hire");
 const User = require("../models/user");
 
 
+
 // ==============================
 // Create Job
 // ==============================
@@ -22,7 +23,6 @@ exports.createJob = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 
 // ==============================
@@ -53,6 +53,8 @@ exports.getMatchedCandidates = async (req, res) => {
       if (candidate.province === job.province) {
         score += 15;
       }
+
+      return null;
 
       if (candidate.city === job.city) {
         score += 10;
@@ -182,6 +184,8 @@ exports.hireCandidate = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 
+  return null;
+
 };
 
 // ==============================
@@ -212,6 +216,14 @@ exports.getRecommendedCandidates = async (req, res) => {
     if (job.requiredSkills && job.requiredSkills.length > 0) {
       filter.skills = { $in: job.requiredSkills };
     }
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+
+  return null;
+
+};
 
     // Query candidates
     let candidates = await User.find(filter).select("-password");

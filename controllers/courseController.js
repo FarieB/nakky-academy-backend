@@ -30,8 +30,10 @@ exports.getCourseById = async (req, res) => {
     }
 
     res.json(course);
+    return null;
   } catch (err) {
     res.status(500).json({ error: err.message });
+    return null;
   }
 };
 
@@ -47,9 +49,10 @@ exports.createCourse = async (req, res) => {
 
     const course = await Course.create(req.body);
     res.status(201).json(course);
-
+    return null;
   } catch (err) {
     res.status(500).json({ error: err.message });
+    return null;
   }
 };
 
@@ -78,9 +81,11 @@ exports.addCourseContent = async (req, res) => {
     await course.save();
 
     res.json({ message: "Lesson added successfully ✅" });
+    return null;
 
   } catch (err) {
     res.status(500).json({ error: err.message });
+    return null;
   }
 };
 
@@ -118,8 +123,10 @@ exports.uploadLessonVideo = async (req, res) => {
       lesson
     });
 
+    return null;
   } catch (err) {
     res.status(500).json({ error: err.message });
+    return null;
   }
 };
 
@@ -152,9 +159,11 @@ exports.enrollCourse = async (req, res) => {
       message: "Enrollment created. Please complete payment.",
       enrollment
     });
+    return null;
 
   } catch (err) {
     res.status(500).json({ error: err.message });
+    return null;
   }
 };
 
@@ -180,9 +189,11 @@ exports.getCourseContent = async (req, res) => {
       content: enrollment.course.content,
       progress: enrollment.progress || 0
     });
+    return null;
 
   } catch (err) {
     res.status(500).json({ error: err.message });
+    return null;
   }
 };
 
@@ -295,9 +306,11 @@ exports.updateProgress = async (req, res) => {
       progress: enrollment.progress,
       completed: enrollment.completed
     });
+    return null;
 
   } catch (err) {
     res.status(500).json({ error: err.message });
+    return null;
   }
 };
 
@@ -330,9 +343,11 @@ exports.issueCertificate = async (req, res) => {
         date: new Date()
       }
     });
+    return null;
 
   } catch (err) {
     res.status(500).json({ error: err.message });
+    return null;
   }
 };
 
@@ -375,8 +390,9 @@ exports.downloadCertificate = async (req, res) => {
     doc.fontSize(16).text(`Date: ${new Date().toLocaleDateString()}`, { align: "center" });
 
     doc.end();
-
+    return null;
   } catch (err) {
     res.status(500).json({ error: err.message });
+    return null;
   }
 };

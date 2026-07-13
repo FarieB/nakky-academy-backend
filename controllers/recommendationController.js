@@ -50,9 +50,11 @@ exports.recommendJobs = async (req, res) => {
     scoredJobs.sort((a, b) => b.score - a.score);
 
     res.json(scoredJobs);
+    return null;
 
   } catch (error) {
     res.status(500).json({ message: error.message });
+    return null;
   }
 };
 
@@ -144,8 +146,8 @@ exports.recommendCourses = async (req, res) => {
     ranked.sort((a, b) => b.score - a.score);
 
     res.json(ranked.slice(0, 5));
-
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+  return null;
 };

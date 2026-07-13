@@ -31,6 +31,7 @@ exports.leaveReview = async (req, res) => {
         message: "Employee not found"
       });
     }
+    return null;
 
     // Optional: ensure employer actually hired this worker
     const hire = await Hire.findOne({
@@ -115,9 +116,11 @@ exports.getEmployeeReviews = async (req, res) => {
       reviews
     });
 
+    return null;
   } catch (error) {
     res.status(500).json({
       message: error.message
     });
+    return null;
   }
 };

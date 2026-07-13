@@ -20,9 +20,11 @@ exports.sendMessage = async (req, res) => {
     });
 
     res.status(201).json(newMessage);
+    return null;
 
   } catch (err) {
     res.status(500).json({ error: err.message });
+    return null;
   }
 };
 

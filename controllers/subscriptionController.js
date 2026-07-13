@@ -20,10 +20,12 @@ exports.createPlan = async (req, res) => {
     });
 
     res.status(201).json(plan);
+    return null;
   } catch (error) {
     res.status(500).json({
       message: error.message,
     });
+    return null;
   }
 };
 

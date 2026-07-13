@@ -29,6 +29,7 @@ const uploadDocuments = async (req, res) => {
       references,
       qualifications
     } = req.body;
+    return null;
 
     if (!idDocument || !references || !qualifications) {
       return res.status(400).json({
@@ -99,9 +100,11 @@ const verifyEmployee = async (req, res) => {
     res.json({
       message: "Employee verified successfully ✅"
     });
+    return null;
 
   } catch (err) {
     res.status(500).json({ error: err.message });
+    return null;
   }
 };
 
@@ -150,9 +153,11 @@ const createOrUpdateProfile = async (req, res) => {
     ).select("-password");
 
     res.json(updatedUser);
+    return null;
 
   } catch (err) {
     res.status(500).json({ error: err.message });
+    return null;
   }
 };
 

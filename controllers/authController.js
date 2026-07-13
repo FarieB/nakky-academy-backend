@@ -32,9 +32,11 @@ const register = async (req, res) => {
       message: "User registered successfully",
       user: userWithoutPassword,
     });
+    return null;
 
   } catch (err) {
     res.status(500).json({ error: err.message });
+    return null;
   }
 };
 
@@ -70,6 +72,7 @@ const login = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+  return null;
 };
 
 module.exports = {

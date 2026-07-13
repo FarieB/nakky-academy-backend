@@ -12,9 +12,11 @@ const adminOnly = async (req, res, next) => {
     }
 
     next();
+    return null;
 
   } catch (error) {
     res.status(500).json({ message: error.message });
+    return null;
   }
 };
 

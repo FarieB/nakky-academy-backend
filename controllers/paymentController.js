@@ -36,7 +36,7 @@ exports.createSubscription = async (req, res) => {
 
         );
 
-        res.status(200).json(payment);
+        return res.status(200).json(payment);
 
     }
 
@@ -44,13 +44,15 @@ exports.createSubscription = async (req, res) => {
 
         console.error(err);
 
-        res.status(500).json({
+        return res.status(500).json({
 
             message: err.message
 
         });
 
     }
+
+    return null;
 
 };
 

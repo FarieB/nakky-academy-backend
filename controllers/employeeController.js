@@ -79,33 +79,6 @@ const verifyEmployee = async (req, res) => {
     }
 
     const user = await User.findById(req.params.id);
-
-    const validations = [
-      {
-        isValid: () => user,
-        code: 404,
-        message: "User not found"
-      },
-      {
-        isValid: () => user.role === "employee",
-        code: 400,
-        message: "Not an employee"
-      },
-      {
-        isValid: () => user.uploadedDocuments?.idDocument,
-        code: 400,
-        message: "Documents not uploaded"
-      },
-      {
-        isValid: () => user.uploadedDocuments?.policeClearance,
-        code: 400,
-        message: "Police clearance not uploaded"
-      },
-      {
-        isValid: () => user.uploadedDocuments?.references,
-        code: 400,
-        message: "References not uploaded"
-      }
     ];
     const router = require('express').Router();
     router.post('/verify', async (req, res) => {

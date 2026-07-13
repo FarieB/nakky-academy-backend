@@ -54,7 +54,7 @@ exports.updateWorkerProfile = async (req, res) => {
 exports.getWorkerProfile = async (req, res) => {
   try {
     const worker = await User.findOne({
-      _id: req.params.id,
+      _id: { $eq: req.params.id },
       role: "employee"
     }).select("-password");
 

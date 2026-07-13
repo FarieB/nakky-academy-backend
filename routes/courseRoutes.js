@@ -25,7 +25,7 @@ const {
 // ==============================
 
 // Create course (Admin only)
-router.post("/", protect, async (req, res, next) => {
+router.post("/", protect, (req, res, next) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Only admins can create courses" });
   }
@@ -33,7 +33,7 @@ router.post("/", protect, async (req, res, next) => {
 }, createCourse);
 
 // Add lesson metadata
-router.post("/:courseId/content", protect, async (req, res, next) => {
+router.post("/:courseId/content", protect, (req, res, next) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Only admins can add course content" });
   }
@@ -44,7 +44,7 @@ router.post("/:courseId/content", protect, async (req, res, next) => {
 router.post(
   "/:courseId/upload-video",
   protect,
-  async (req, res, next) => {
+  (req, res, next) => {
     if (req.user.role !== "admin") {
       return res.status(403).json({ message: "Only admins can upload videos" });
     }

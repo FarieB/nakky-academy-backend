@@ -1,11 +1,11 @@
-const Notification = require("../models/Notification");
+const NotificationModel = require("../models/Notification");
 
 // ==============================
 // Get My Notifications
 // ==============================
 exports.getMyNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({
+    const notifications = await NotificationModel.find({
       user: req.user._id,
     }).sort({ createdAt: -1 });
 
@@ -22,7 +22,7 @@ exports.getMyNotifications = async (req, res) => {
 // ==============================
 exports.markAsRead = async (req, res) => {
   try {
-    const notification = await Notification.findOne({
+    const notification = await NotificationModel.findOne({
       _id: { $eq: req.params.id },
       user: req.user._id,
     });

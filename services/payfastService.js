@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+const cryptoLib = require("crypto");
 const querystring = require("querystring");
 const axios = require("axios");
 const payfast = require("../config/payfast");

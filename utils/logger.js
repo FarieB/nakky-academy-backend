@@ -1,5 +1,5 @@
 exports.info = (...args) => {
-
+  // intentionally empty. info logging disabled
 };
 
 exports.error = (...args) => {

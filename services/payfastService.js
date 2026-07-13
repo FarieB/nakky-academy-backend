@@ -36,7 +36,7 @@ exports.generateSignature = (data) => {
     }
 
     return crypto
-        .createHash("md5")
+        .createHash("sha256")
         .update(pfOutput)
         .digest("hex");
 

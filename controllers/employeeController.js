@@ -105,6 +105,8 @@ const verifyEmployee = async (req, res) => {
         isValid: () => user.uploadedDocuments?.references,
         code: 400,
         message: "References not uploaded"
+      }
+    ];
     router.post('/verify', async (req, res) => {
       try {
         const validations = [

@@ -227,6 +227,7 @@ exports.streamVideo = async (req, res) => {
 };
 
     if (range) {
+exports.streamVideo = async (req, res) => {
       const parts = range.replace(/bytes=/, "").split("-");
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;

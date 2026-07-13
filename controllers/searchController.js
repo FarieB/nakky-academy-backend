@@ -114,6 +114,7 @@ exports.searchWorkersAdvanced = async (req, res) => {
     if (availabilityStatus) filter.availabilityStatus = availabilityStatus;
 
     if (workPreference) filter.workPreference = workPreference;
+
 export const searchController = async (req, res) => {
 
     if (verifiedBadge) {

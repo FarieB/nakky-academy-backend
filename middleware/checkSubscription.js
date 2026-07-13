@@ -17,15 +17,18 @@ const checkSubscription = async (req, res, next) => {
             return res.status(status).json({ message });
         }
 
-        return null;
-        return null;
-
         if (user.subscriptionStatus !== "active") {
-
             return res.status(403).json({
+                message: "Please subscribe before posting jobs."
+            });
+        }
 
-                message:
-                    "Please subscribe before posting jobs."
+        return null;
+    } catch (error) {
+        next(error);
+        return null;
+    }
+};
 
             });
 

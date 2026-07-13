@@ -121,5 +121,6 @@ app.use((err, req, res, _next) => {
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-    console.log(`🚀 Nakky Academy API running on port ${PORT}`);
+    // Logging server start; necessary for startup monitoring.
+    console.log(`🚀 Nakky Academy API running on port ${PORT}`); // skipcq: JS-0002
 });

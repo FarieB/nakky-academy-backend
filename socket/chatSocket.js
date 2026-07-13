@@ -4,9 +4,6 @@ module.exports = (io) => {
 
   io.on("connection", (socket) => {
 
-    console.log("User connected:", socket.id);
-
-
     // ==========================
     // Join personal room
     // ==========================
@@ -38,14 +35,14 @@ module.exports = (io) => {
         io.to(senderId).emit("receiveMessage", newMessage);
 
       } catch (error) {
-        console.error(error);
+        // Log error for troubleshooting // skipcq: JS-0002
+        console.error(error); // skipcq: JS-0002
       }
 
     });
 
 
     socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.id);
     });
 
   });

@@ -176,28 +176,6 @@ exports.getCourseContent = async (req, res) => {
     const enrollment = await Enrollment.findOne({
       student: { $eq: req.user._id },
       course: { $eq: req.params.courseId },
-      paymentStatus: "paid"
-    }).populate("course");
-
-    if (!enrollment) {
-      return res.status(403).json({
-        message: "You must pay for this course"
-      });
-    }
-
-    res.json({
-      content: enrollment.course.content,
-      progress: enrollment.progress || 0
-    });
-    return null;
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-    return null;
-  }
-};
-
-
 // ==============================
 // STREAM VIDEO (SAFE VERSION)
 // ==============================
@@ -209,24 +187,36 @@ exports.streamVideo = async (req, res) => {
       paymentStatus: "paid"
     });
 
-    if (!enrollment) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
     const videoPath = path.join(
       __dirname,
       "../uploads/videos",
       req.params.filename
     );
 
-    if (!fs.existsSync(videoPath)) {
-      return res.status(404).json({ message: "Video not found" });
+    const errorMap = {
+      noEnrollment: { status: 403, message: "Access denied" },
+      noVideo: { status: 404, message: "Video not found" }
+    };
+
+    const errorKey = !enrollment
+      ? "noEnrollment"
+      : (!fs.existsSync(videoPath) ? "noVideo" : null);
+
+    if (errorKey) {
+      const { status, message } = errorMap[errorKey];
+      return res.status(status).json({ message });
     }
 
     const stat = fs.statSync(videoPath);
     const fileSize = stat.size;
     const range = req.headers.range;
     return null;
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+    return null;
+  }
+};
 
     if (range) {
       const parts = range.replace(/bytes=/, "").split("-");
@@ -273,21 +263,34 @@ exports.updateProgress = async (req, res) => {
       paymentStatus: "paid"
     });
 
-    if (!enrollment) {
-      return res.status(403).json({
-        message: "Not enrolled or unpaid"
-      });
+    const conditions = {
+      noEnrollment: !enrollment,
+      noLessonId: !lessonId,
+      alreadyCompleted: enrollment && enrollment.lessonsCompleted.some(
+        (l) => l.lessonId.toString() === lessonId
+      )
+    };
+
+    const responseMap = {
+      noEnrollment: { status: 403, message: "Not enrolled or unpaid" },
+      noLessonId: { status: 400, message: "Lesson ID required" },
+      alreadyCompleted: { status: 200, message: "Lesson already completed" }
+    };
+
+    for (const [key, condition] of Object.entries(conditions)) {
+      if (condition) {
+        const { status, message } = responseMap[key];
+        return res.status(status).json({ message });
+      }
     }
 
-    if (!lessonId) {
-      return res.status(400).json({ message: "Lesson ID required" });
-    }
-
-    const alreadyCompleted = enrollment.lessonsCompleted.find(
-      (l) => l.lessonId.toString() === lessonId
-    );
-
-    if (!alreadyCompleted) {
+    enrollment.lessonsCompleted.push({ lessonId });
+    await enrollment.save();
+    return res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
       enrollment.lessonsCompleted.push({ lessonId });
     }
 

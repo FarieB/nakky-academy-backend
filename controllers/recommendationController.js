@@ -23,26 +23,23 @@ exports.recommendJobs = async (req, res) => {
     });
 
     // Score jobs
+    const scoreRules = [
+      (job, user) => job.city === user.city ? 20 : 0,
+      (job, user) => job.province === user.province ? 10 : 0,
+      (job, user) => user.yearsExperience >= job.requiredExperience ? 25 : 0,
+      (job, user) => {
+        if (user.skills && job.requiredSkills) {
+          const matched = user.skills.filter(skill =>
+            job.requiredSkills.includes(skill)
+          );
+          return matched.length * 10;
+        }
+        return 0;
+      }
+    ];
+
     const scoredJobs = jobs.map(job => {
-      let score = 0;
-
-      // Location match
-      if (job.city === user.city) score += 20;
-      if (job.province === user.province) score += 10;
-
-      // Experience match
-      if (user.yearsExperience >= job.requiredExperience) {
-        score += 25;
-      }
-
-      // Skills match
-      if (user.skills && job.requiredSkills) {
-        const matched = user.skills.filter(skill =>
-          job.requiredSkills.includes(skill)
-        );
-        score += matched.length * 10;
-      }
-
+      const score = scoreRules.reduce((total, rule) => total + rule(job, user), 0);
       return { job, score };
     });
 

@@ -51,28 +51,6 @@ exports.updateWorkerProfile = async (req, res) => {
 // ==============================
 // View Worker Profile
 // ==============================
-exports.getWorkerProfile = async (req, res) => {
-  try {
-    const worker = await User.findOne({
-      _id: { $eq: req.params.id },
-      role: "employee"
-    }).select("-password");
-
-    if (!worker) {
-      return res.status(404).json({
-        message: "Worker not found"
-      });
-    }
-
-    return res.json(worker);
-
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-};
-
-
-// ==============================
 // Search Workers (Filters)
 // ==============================
 exports.searchWorkers = async (req, res) => {
@@ -88,19 +66,39 @@ exports.searchWorkers = async (req, res) => {
       keyword
     } = req.query;
 
-    const filter = {
-      role: "employee"
-    };
+    const filter = { role: "employee" };
 
-    // Basic filters
-    if (workerType) filter.workerType = workerType;
-    if (province) filter.province = province;
-    if (availabilityStatus) filter.availabilityStatus = availabilityStatus;
-    if (workPreference) filter.workPreference = workPreference;
+    // Basic filters mapping
+    const basicFilters = { workerType, province, availabilityStatus, workPreference };
+    Object.entries(basicFilters).forEach(([key, value]) => {
+      if (value) filter[key] = value;
+    });
 
     // Rating filter
     if (minRating) {
       filter.averageRating = { $gte: Number(minRating) };
+    }
+
+    // Experience filter
+    if (minExperience || maxExperience) {
+      filter.experience = {
+        ...(minExperience && { $gte: Number(minExperience) }),
+        ...(maxExperience && { $lte: Number(maxExperience) })
+      };
+    }
+
+    // Keyword filter
+    if (keyword) {
+      filter.$text = { $search: keyword };
+    }
+
+    const workers = await User.find(filter).select("-password");
+    return res.json(workers);
+
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
     }
 
     // Experience filter

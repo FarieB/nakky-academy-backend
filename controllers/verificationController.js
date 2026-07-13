@@ -33,6 +33,9 @@ exports.submitVerification = async (req, res) => {
       });
     }
 
+    return null;
+    }
+
     // ✅ Validate uploaded files
     if (!req.files || !req.files["idDocument"]) {
       return res.status(400).json({
@@ -117,9 +120,11 @@ exports.approveVerification = async (req, res) => {
     res.json({
       message: "Candidate verified successfully ✅"
     });
+    return null;
 
   } catch (error) {
     res.status(500).json({ message: error.message });
+    return null;
   }
 };
 
@@ -155,8 +160,10 @@ exports.rejectVerification = async (req, res) => {
     res.json({
       message: "Verification rejected ❌"
     });
+    return null;
 
   } catch (error) {
     res.status(500).json({ message: error.message });
+    return null;
   }
 };

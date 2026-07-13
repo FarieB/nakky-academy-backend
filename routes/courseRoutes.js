@@ -30,6 +30,7 @@ router.post("/", protect, async (req, res, next) => {
     return res.status(403).json({ message: "Only admins can create courses" });
   }
   next();
+  return null;
 }, createCourse);
 
 // Add lesson metadata
@@ -38,6 +39,7 @@ router.post("/:courseId/content", protect, async (req, res, next) => {
     return res.status(403).json({ message: "Only admins can add course content" });
   }
   next();
+  return null;
 }, addCourseContent);
 
 // Upload lesson video
@@ -49,6 +51,7 @@ router.post(
       return res.status(403).json({ message: "Only admins can upload videos" });
     }
     next();
+    return null;
   },
   upload.single("video"),
   uploadLessonVideo

@@ -31,7 +31,17 @@ exports.leaveReview = async (req, res) => {
         message: "Employee not found"
       });
     }
+
+    // Additional review creation logic would go here
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
     return null;
+  }
+
+  return null;
+};
 
     // Optional: ensure employer actually hired this worker
     const hire = await Hire.findOne({

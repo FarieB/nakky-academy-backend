@@ -21,7 +21,7 @@ exports.generateSignature = (data) => {
                 data[key] !== ""
             ) {
 
-                pfOutput += `${key}=${encodeURIComponent(data[key]).replace(/%20/g, "+")}&`;
+                pfOutput += `${key}=${encodeURIComponent(data[key]).replace(/%20/g, "+")} &`;
 
             }
 

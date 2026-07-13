@@ -8,28 +8,43 @@ const Hire = require("../models/Hire");
 // =================================
 exports.leaveReview = async (req, res) => {
   try {
-    if (req.user.role !== "employer") {
-      return res.status(403).json({
-        message: "Only employers can leave reviews"
-      });
-    }
-
     const { employeeId, rating, comment, jobId } = req.body;
 
-    // Validate rating
-    if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({
+    const validators = {
+      invalidRole: {
+        check: () => req.user.role !== "employer",
+        status: 403,
+        message: "Only employers can leave reviews"
+      },
+      invalidRating: {
+        check: () => !rating || rating < 1 || rating > 5,
+        status: 400,
         message: "Rating must be between 1 and 5"
-      });
+      }
+    };
+
+    for (const key in validators) {
+      const { check, status, message } = validators[key];
+      if (check()) {
+        return res.status(status).json({ message });
+      }
     }
 
-    // Check employee exists
     const employee = await User.findById(employeeId);
 
-    if (!employee || employee.role !== "employee") {
-      return res.status(404).json({
+    const postValidators = {
+      invalidEmployee: {
+        check: () => !employee || employee.role !== "employee",
+        status: 404,
         message: "Employee not found"
-      });
+      }
+    };
+
+    for (const key in postValidators) {
+      const { check, status, message } = postValidators[key];
+      if (check()) {
+        return res.status(status).json({ message });
+      }
     }
 
     // Additional review creation logic would go here

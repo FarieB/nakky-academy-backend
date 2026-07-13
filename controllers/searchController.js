@@ -29,6 +29,62 @@ exports.searchWorkersAdvanced = async (req, res) => {
     // ==============================
     // Filters
     // ==============================
+    // Map for direct equality filters
+    const directFilters = {
+      workerType,
+      province,
+      city,
+      minRating,
+      availabilityStatus,
+      workPreference,
+      verifiedBadge
+    };
+
+    Object.entries(directFilters).forEach(([key, value]) => {
+      if (value !== undefined && value !== "") {
+        filter[key] = value;
+      }
+    });
+
+    // Range filters
+    if (minExperience || maxExperience) {
+      filter.experience = {};
+      if (minExperience) filter.experience.$gte = Number(minExperience);
+      if (maxExperience) filter.experience.$lte = Number(maxExperience);
+    }
+
+    if (minSalary || maxSalary) {
+      filter.salary = {};
+      if (minSalary) filter.salary.$gte = Number(minSalary);
+      if (maxSalary) filter.salary.$lte = Number(maxSalary);
+    }
+
+    // Skills filter
+    if (skills) {
+      filter.skills = { $all: skills.split(",").map(skill => skill.trim()) };
+    }
+
+    // Pagination
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // Sort options mapping
+    const sortOptions = {
+      rating: { rating: -1 },
+      experience: { experience: -1 },
+      salary: { salary: -1 }
+    };
+    const sortCriteria = sortOptions[sortBy] || sortOptions.rating;
+
+    const workers = await User.find(filter)
+      .sort(sortCriteria)
+      .skip(skip)
+      .limit(Number(limit));
+
+    res.status(200).json({ data: workers });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
     if (workerType) filter.workerType = workerType;
 

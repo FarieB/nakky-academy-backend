@@ -7,20 +7,28 @@ const uploadDocuments = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    if (user.role !== "employee") {
-      return res.status(403).json({
+    const checks = [
+      {
+        condition: user => !user,
+        status: 404,
+        message: "User not found"
+      },
+      {
+        condition: user => user.role !== "employee",
+        status: 403,
         message: "Only employees can upload documents"
-      });
-    }
-
-    if (!user.hasPaidVerificationFee) {
-      return res.status(403).json({
+      },
+      {
+        condition: user => !user.hasPaidVerificationFee,
+        status: 403,
         message: "Please pay the R100 verification fee first"
-      });
+      }
+    ];
+
+    for (const { condition, status, message } of checks) {
+      if (condition(user)) {
+        return res.status(status).json({ message });
+      }
     }
 
     const {
@@ -67,28 +75,61 @@ const uploadDocuments = async (req, res) => {
 const verifyEmployee = async (req, res) => {
   try {
     if (req.user.role !== "admin") {
-      return res.status(403).json({
-        message: "Admin access required"
-      });
+      return res.status(403).json({ message: "Admin access required" });
     }
 
     const user = await User.findById(req.params.id);
 
-    if (!user) {
-      return res.status(404).json({
+    const validations = [
+      {
+        isValid: () => user,
+        code: 404,
         message: "User not found"
-      });
-    }
-
-    if (user.role !== "employee") {
-      return res.status(400).json({
+      },
+      {
+        isValid: () => user.role === "employee",
+        code: 400,
         message: "Not an employee"
-      });
+      },
+      {
+        isValid: () => user.uploadedDocuments?.idDocument,
+        code: 400,
+        message: "Documents not uploaded"
+      },
+      {
+        isValid: () => user.uploadedDocuments?.policeClearance,
+        code: 400,
+        message: "Police clearance not uploaded"
+      },
+      {
+        isValid: () => user.uploadedDocuments?.references,
+        code: 400,
+        message: "References not uploaded"
+      },
+      {
+        isValid: () => user.uploadedDocuments?.qualifications,
+        code: 400,
+        message: "Qualifications not uploaded"
+      }
+    ];
+
+    for (const { isValid, code, message } of validations) {
+      if (!isValid()) {
+        return res.status(code).json({ message });
+      }
     }
 
-    if (!user.uploadedDocuments?.idDocument) {
-      return res.status(400).json({
-        message: "Documents not uploaded"
+    user.verificationStatus = "verified";
+    user.isVerified = true;
+    user.verifiedBadge = true;
+
+    await user.save();
+
+    res.json({ message: "Employee verified successfully." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
       });
     }
 

@@ -117,7 +117,7 @@ exports.deleteUser = async (req, res) => {
 
   try {
 
-    await User.findByIdAndDelete(req.params.id);
+    await User.findOneAndDelete({ _id: { $eq: req.params.id } });
 
     res.json({
       message: "User deleted successfully"
@@ -138,7 +138,7 @@ exports.deleteJob = async (req, res) => {
 
   try {
 
-    await JobPost.findByIdAndDelete(req.params.id);
+    await JobPost.findOneAndDelete({ _id: { $eq: req.params.id } });
 
     res.json({
       message: "Job deleted successfully"

@@ -53,7 +53,7 @@ exports.updateWorkerProfile = async (req, res) => {
 // ==============================
 // Search Workers (Filters)
 // ==============================
-exports.searchWorkers = async (req, res) => {
+exports.searchWorkers = (req, res) => {
   try {
     const {
       workerType,

@@ -34,15 +34,15 @@ exports.submitVerification = async (req, res) => {
     }
 
     // ✅ Validate uploaded files
-    if (!req.files || !req.files["idDocument"]) {
+    if (!req.files || !req.files.idDocument) {
       return res.status(400).json({
         message: "ID document is required"
       });
     }
 
-    const idDocument = req.files["idDocument"][0].filename;
-    const policeClearance = req.files["policeClearance"]
-      ? req.files["policeClearance"][0].filename
+    const idDocument = req.files.idDocument[0].filename;
+    const policeClearance = req.files.policeClearance
+      ? req.files.policeClearance[0].filename
       : null;
 
     // ✅ Create verification request
@@ -66,7 +66,6 @@ exports.submitVerification = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 
 // ==============================

@@ -89,41 +89,36 @@ exports.recommendCandidates = async (req, res) => {
     });
 
     // Sort best first
-    ranked.sort((a, b) => b.score - a.score);
+  const ranked = candidates.map((candidate) => {
+    let score = 0;
 
-    res.json(ranked);
-    return null;
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-    return null;
-  }
-      if (candidate.skills && job.requiredSkills) {
-        const matched = candidate.skills.filter(skill =>
-          job.requiredSkills.includes(skill)
-        );
-        score += matched.length * 10;
-      }
+    if (candidate.skills && job.requiredSkills) {
+      const matched = candidate.skills.filter(skill =>
+        job.requiredSkills.includes(skill)
+      );
+      score += matched.length * 10;
+    }
 
-      // Experience
-      score += candidate.yearsExperience;
+    // Experience
+    score += candidate.yearsExperience;
 
-      // Rating weight
-      score += (candidate.averageRating || 0) * 5;
+    // Rating weight
+    score += (candidate.averageRating || 0) * 5;
 
-      // Verified bonus
-      if (candidate.verifiedBadge) score += 10;
+    // Verified bonus
+    if (candidate.verifiedBadge) score += 10;
 
-      return { candidate, score };
-    });
+    return { candidate, score };
+  });
 
-    ranked.sort((a, b) => b.score - a.score);
+  ranked.sort((a, b) => b.score - a.score);
 
-    res.json(ranked.slice(0, 5)); // Top 5
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+  res.json(ranked);
+  return null;
+} catch (error) {
+  res.status(500).json({ message: error.message });
+  return null;
+}
     const courses = await Course.find();
 
     // Example: prioritize caregiving-related courses
@@ -139,7 +134,7 @@ exports.recommendCandidates = async (req, res) => {
     ranked.sort((a, b) => b.score - a.score);
 
     res.json(ranked.slice(0, 5));
-  } catch (error) {
+} catch (error) {
     res.status(500).json({ message: error.message });
   }
   return null;

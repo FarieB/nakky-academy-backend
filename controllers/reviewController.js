@@ -9,7 +9,6 @@ const Hire = require("../models/Hire");
 exports.leaveReview = async (req, res) => {
   try {
     const { employeeId, rating, comment, jobId } = req.body;
-
     const validators = {
       invalidRole: {
         check: () => req.user.role !== "employer",
@@ -34,7 +33,6 @@ exports.leaveReview = async (req, res) => {
 
     const postValidators = {
       invalidEmployee: {
-const createReview = async (req, res) => {
         check: () => !employee || employee.role !== "employee",
         status: 404,
         message: "Employee not found"

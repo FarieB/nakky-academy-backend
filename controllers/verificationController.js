@@ -16,6 +16,7 @@ exports.submitVerification = async (req, res) => {
     const user = await User.findById(req.user._id);
 
     // ✅ Must pay verification first
+async (req, res) => {
     if (!user.hasPaidVerificationFee) {
       return res.status(403).json({
         message: "Please pay verification fee first"
@@ -40,7 +41,7 @@ exports.submitVerification = async (req, res) => {
       message: "Server error"
     });
   }
-};
+
       return res.status(400).json({
         message: "ID document is required"
       });

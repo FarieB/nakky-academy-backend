@@ -33,11 +33,14 @@ exports.submitVerification = async (req, res) => {
       });
     }
 
-    return null;
-    }
-
-    // ✅ Validate uploaded files
-    if (!req.files || !req.files.idDocument) {
+    // Continue with submission logic here
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Server error"
+    });
+  }
+};
       return res.status(400).json({
         message: "ID document is required"
       });

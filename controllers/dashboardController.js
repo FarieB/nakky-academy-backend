@@ -34,9 +34,7 @@ exports.getUnifiedDashboard = async (req, res) => {
       const messages = await Message.find({
         $or: [{ sender: userId }, { receiver: userId }],
       })
-        .populate("sender", "name");
-
-      return null;
+        .populate("sender", "name")
         .populate("receiver", "name")
         .sort({ createdAt: -1 });
 

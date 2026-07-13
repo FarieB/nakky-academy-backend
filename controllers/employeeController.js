@@ -105,33 +105,33 @@ const verifyEmployee = async (req, res) => {
         isValid: () => user.uploadedDocuments?.references,
         code: 400,
         message: "References not uploaded"
-      },
-      {
-        isValid: () => user.uploadedDocuments?.qualifications,
-        code: 400,
-        message: "Qualifications not uploaded"
+    router.post('/verify', async (req, res) => {
+      try {
+        const validations = [
+          {
+            isValid: () => user.uploadedDocuments?.qualifications,
+            code: 400,
+            message: "Qualifications not uploaded"
+          }
+        ];
+
+        for (const { isValid, code, message } of validations) {
+          if (!isValid()) {
+            return res.status(code).json({ message });
+          }
+        }
+
+        user.verificationStatus = "verified";
+        user.isVerified = true;
+        user.verifiedBadge = true;
+
+        await user.save();
+
+        res.json({ message: "Employee verified successfully." });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
       }
-    ];
-
-    for (const { isValid, code, message } of validations) {
-      if (!isValid()) {
-        return res.status(code).json({ message });
-      }
-    }
-
-    user.verificationStatus = "verified";
-    user.isVerified = true;
-    user.verifiedBadge = true;
-
-    await user.save();
-
-    res.json({ message: "Employee verified successfully." });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-      });
-    }
+    });
 
     user.isVerified = true;
     user.verificationStatus = "verified";

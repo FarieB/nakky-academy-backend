@@ -5,7 +5,7 @@ const checkSubscription = async (req, res, next) => {
     try {
 
         const user = req.user;
-
+        async (req, res, next) => {
         const errorMap = {
             noUser: { status: 401, message: "Authentication required." },
             notEmployer: { status: 403, message: "Only employers can perform this action." }

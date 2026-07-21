@@ -1,3 +1,6 @@
+const PDFDocument = require("pdfkit");
+const QRCode = require("qrcode");
+const path = require("path");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const PDFDocument = require("pdfkit");
@@ -44,17 +47,223 @@ exports.getCourseById = async (req, res) => {
 exports.createCourse = async (req, res) => {
   try {
     if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Admin only" });
+      return res.status(403).json({
+        message: "Admin only",
+      });
     }
 
-    const course = await Course.create(req.body);
-    res.status(201).json(course);
-    return null;
+      const {
+      title,
+      shortDescription,
+      description,
+      category,
+      level,
+      duration,
+      price,
+      published,
+      certificate,
+      passMark,
+      content,
+    } = req.body; 
+
+    if (!title || !description) {
+      return res.status(400).json({
+        message: "Title and description are required.",
+      });
+    }
+
+   const course = await Course.create({
+  title,
+  shortDescription,
+  description,
+  category,
+  level,
+  duration,
+  price,
+  published,
+  certificate,
+  passMark,
+  content: content || [],
+}); 
+
+    res.status(201).json({
+      message: "Course created successfully.",
+      course,
+    });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
-    return null;
+    res.status(500).json({
+      error: err.message,
+    });
   }
 };
+
+// ==============================
+// ADMIN: UPDATE COURSE
+// ==============================
+exports.updateCourse = async (req, res) => {
+  try {
+
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Admin only",
+      });
+    }
+
+    const course = await Course.findByIdAndUpdate(
+      req.params.courseId,
+      req.body,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!course) {
+      return res.status(404).json({
+        message: "Course not found",
+      });
+    }
+
+    res.json(course);
+
+  } catch (err) {
+
+    res.status(500).json({
+      error: err.message,
+    });
+
+  }
+};
+
+// ==============================
+// ADMIN: DELETE COURSE
+// ==============================
+exports.deleteCourse = async (req, res) => {
+
+  try {
+
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Admin only",
+      });
+    }
+
+    const course = await Course.findById(req.params.courseId);
+
+    if (!course) {
+      return res.status(404).json({
+        message: "Course not found",
+      });
+    }
+
+    // Remove all enrollments for this course
+
+    await Enrollment.deleteMany({
+      course: course._id,
+    });
+
+    await course.deleteOne();
+
+    res.json({
+      message: "Course deleted successfully",
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
+      error: err.message,
+    });
+
+  }
+
+};
+
+
+// =====================================
+// PUBLISH COURSE
+// =====================================
+
+exports.publishCourse = async (req, res) => {
+
+    try {
+
+        if (req.user.role !== "admin") {
+            return res.status(403).json({
+                message: "Admin only"
+            });
+        }
+
+        const course = await Course.findById(req.params.courseId);
+
+        if (!course) {
+            return res.status(404).json({
+                message: "Course not found"
+            });
+        }
+
+        course.published = true;
+
+        await course.save();
+
+        res.json({
+            message: "Course published successfully",
+            course
+        });
+
+    } catch (err) {
+
+        res.status(500).json({
+            error: err.message
+        });
+
+    }
+
+};
+
+
+// =====================================
+// UNPUBLISH COURSE
+// =====================================
+
+exports.unpublishCourse = async (req, res) => {
+
+    try {
+
+        if (req.user.role !== "admin") {
+            return res.status(403).json({
+                message: "Admin only"
+            });
+        }
+
+        const course = await Course.findById(req.params.courseId);
+
+        if (!course) {
+            return res.status(404).json({
+                message: "Course not found"
+            });
+        }
+
+        course.published = false;
+
+        await course.save();
+
+        res.json({
+            message: "Course unpublished successfully",
+            course
+        });
+
+    } catch (err) {
+
+        res.status(500).json({
+            error: err.message
+        });
+
+    }
+
+};
+
+
 
 
 // ==============================
@@ -72,11 +281,13 @@ exports.addCourseContent = async (req, res) => {
       return res.status(404).json({ message: "Course not found" });
     }
 
-    course.content.push({
-      title: req.body.title,
-      description: req.body.description,
-      videoUrl: req.body.videoUrl || null
-    });
+   course.content.push({
+    title: req.body.title,
+    description: req.body.description,
+    videoUrl: req.body.videoUrl || "",
+    duration: req.body.duration || 0,
+    order: course.content.length + 1,
+}); 
 
     await course.save();
 
@@ -96,37 +307,48 @@ exports.addCourseContent = async (req, res) => {
 exports.uploadLessonVideo = async (req, res) => {
   try {
     if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Admin only" });
+      return res.status(403).json({
+        message: "Admin only",
+      });
     }
 
     if (!req.file) {
-      return res.status(400).json({ message: "No video uploaded" });
+      return res.status(400).json({
+        message: "No video uploaded",
+      });
     }
 
     const course = await Course.findById(req.params.courseId);
 
     if (!course) {
-      return res.status(404).json({ message: "Course not found" });
+      return res.status(404).json({
+        message: "Course not found",
+      });
     }
 
-    const lesson = {
-      title: req.body.title,
-      description: req.body.description,
-      videoUrl: req.file.filename
-    };
+    // Find the lesson inside the course
+    const lesson = course.content.id(req.params.lessonId);
 
-    course.content.push(lesson);
+    if (!lesson) {
+      return res.status(404).json({
+        message: "Lesson not found",
+      });
+    }
+
+    // Update only the video's filename
+    lesson.videoUrl = req.file.filename;
+
     await course.save();
 
     res.json({
       message: "Lesson video uploaded successfully 🎥",
-      lesson
+      lesson,
     });
 
-    return null;
   } catch (err) {
-    res.status(500).json({ error: err.message });
-    return null;
+    res.status(500).json({
+      error: err.message,
+    });
   }
 };
 
@@ -168,18 +390,62 @@ exports.enrollCourse = async (req, res) => {
 
 
 // ==============================
-// STUDENT: GET CONTENT
+// STUDENT: GET COURSE CONTENT
 // ==============================
 exports.getCourseContent = async (req, res) => {
   try {
     const enrollment = await Enrollment.findOne({
-      student: { $eq: req.user._id },
-      course: { $eq: req.params.courseId },
+      student: req.user._id,
+      course: req.params.courseId,
+      paymentStatus: "paid",
     });
 
-    // ...additional logic for sending content...
+    if (!enrollment) {
+      return res.status(403).json({
+        message: "You are not enrolled in this course.",
+      });
+    }
+
+    const course = await Course.findById(req.params.courseId);
+
+    if (!course) {
+      return res.status(404).json({
+        message: "Course not found.",
+      });
+    }
+
+    res.json({
+      _id: course._id,
+      title: course.title,
+      shortDescription: course.shortDescription,
+      description: course.description,
+      category: course.category,
+      level: course.level,
+      duration: course.duration,
+      price: course.price,
+      passMark: course.passMark,
+
+      content: course.content,
+
+      progress: enrollment.progress,
+
+      completed: enrollment.completed,
+
+      completedLessons: enrollment.lessonsCompleted.map(
+        (lesson) => lesson.lessonId.toString()
+      ),
+
+      certificateIssued:
+        enrollment.certificateIssued,
+
+      certificateNumber:
+        enrollment.certificateNumber,
+    });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      error: err.message,
+    });
   }
 };
 
@@ -297,16 +563,28 @@ exports.updateProgress = async (req, res) => {
       (enrollment.lessonsCompleted.length / course.content.length) * 100
     );
 
-    if (enrollment.progress >= 100) {
+      if (enrollment.progress >= 100) {
       enrollment.completed = true;
-    }
+      enrollment.completedAt = new Date();
+
+      if (!enrollment.certificateIssued) {
+        enrollment.certificateIssued = true;
+
+        enrollment.certificateNumber =
+          `NA-${Date.now()}`;
+      }
+    } 
 
     await enrollment.save();
 
-    res.json({
+     res.json({
       progress: enrollment.progress,
-      completed: enrollment.completed
-    });
+      completed: enrollment.completed,
+      certificateIssued:
+        enrollment.certificateIssued,
+      certificateNumber:
+        enrollment.certificateNumber,
+    }); 
 
   } catch (err) {
     res.status(500).json({
@@ -332,8 +610,14 @@ exports.issueCertificate = async (req, res) => {
       });
     }
 
-    enrollment.certificateIssued = true;
-    await enrollment.save();
+      if (!enrollment.certificateIssued) {
+      enrollment.certificateIssued = true;
+
+      enrollment.certificateNumber =
+        `NA-${Date.now()}`;
+
+      await enrollment.save();
+    } 
 
     res.json({
       message: "Certificate issued 🎉",
@@ -352,47 +636,187 @@ exports.issueCertificate = async (req, res) => {
 };
 
 
+const PDFDocument = require("pdfkit");
+const path = require("path"); // 💡 Required for Step 6 & 11 asset paths
+const QRCode = require("qrcode"); // 💡 Make sure 'npm install qrcode' is run
+
 // ==============================
-// DOWNLOAD CERTIFICATE (PDF)
+// DOWNLOAD CERTIFICATE
 // ==============================
 exports.downloadCertificate = async (req, res) => {
   try {
+
     const enrollment = await Enrollment.findOne({
-      student: { $eq: req.user._id },
-      course: { $eq: req.params.courseId },
+      student: req.user._id,
+      course: req.params.courseId,
       completed: true
     }).populate("course");
 
     if (!enrollment) {
       return res.status(400).json({
-        message: "Course not completed"
+        message: "Course not completed."
       });
     }
 
-    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    if (!enrollment.certificateNumber) {
+      enrollment.certificateNumber =
+        "NK-" + Date.now();
 
-    const fileName = `Certificate_${enrollment.course.title}_${req.user.name}.pdf`;
+      enrollment.certificateIssued = true;
 
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${fileName}"`
+      await enrollment.save();
+    }
+
+    const verificationURL =
+      `https://nakkyacademy.co.za{enrollment.certificateNumber}`;
+
+    // ----------------------------------------------------
+    // Step 5 — Generate QR Code Data & Buffer
+    // ----------------------------------------------------
+    const qrImage = await QRCode.toDataURL(verificationURL);
+    const qrBuffer = Buffer.from(
+      qrImage.replace(/^data:image\/png;base64,/, ""),
+      "base64"
     );
 
+    const doc = new PDFDocument({
+      size: "A4",
+      layout: "landscape",
+      margin: 50,
+    });
+
     res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${enrollment.course.title}-Certificate.pdf"`
+    );
 
     doc.pipe(res);
 
-    doc.fontSize(24).text("Nakky Academy Certificate of Completion", { align: "center" }).moveDown(2);
-    doc.fontSize(18).text("This certifies that", { align: "center" }).moveDown(1);
-    doc.fontSize(22).text(req.user.name, { align: "center", underline: true }).moveDown(1);
-    doc.fontSize(18).text("has successfully completed the course", { align: "center" }).moveDown(1);
-    doc.fontSize(20).text(enrollment.course.title, { align: "center", underline: true }).moveDown(2);
-    doc.fontSize(16).text(`Date: ${new Date().toLocaleDateString()}`, { align: "center" });
+    // ----------------------------------------------------
+    // Step 12 — Decorative Border (Drawn first to sit in background)
+    // ----------------------------------------------------
+    doc
+      .lineWidth(8)
+      .strokeColor("#C8A24C")
+      .rect(20, 20, 802, 555) // Adjusted to 802 to fit your canvas layout perfectly
+      .stroke();
+
+    doc
+      .lineWidth(2)
+      .strokeColor("#E91E63")
+      .rect(35, 35, 772, 525) // Adjusted to 772 to match layout bounds cleanly
+      .stroke();
+
+    // ----------------------------------------------------
+    // Step 13 — Watermark (Drawn early so text sits safely on top)
+    // ----------------------------------------------------
+    doc
+      .opacity(0.08)
+      .fontSize(100)
+      .fillColor("#E91E63")
+      .rotate(-35, { origin: [420, 290] })
+      .text("NAKKY ACADEMY", 120, 240);
+
+    // CRITICAL: Reset opacity immediately so normal assets aren't transparent
+    doc.opacity(1); 
+    // CRITICAL: Un-rotate the canvas matrix so following text stays straight
+    doc.rotate(35, { origin: [420, 290] }); 
+
+    // ----------------------------------------------------
+    // Step 6 — Add Academy Logo
+    // ----------------------------------------------------
+    doc.image(
+      path.join(__dirname, "../assets/logo.png"),
+      345, // Adjusted to 345 to center a 150px wide image perfectly on an 842px page
+      45,
+      { width: 150 }
+    );
+
+    // Spacing adjustment down to clear header logo layout
+    doc.moveDown(5);
+
+    doc
+      .fontSize(26)
+      .fillColor("#000")
+      .text("Certificate of Completion", { align: "center" });
+
+    doc.moveDown(1);
+
+    doc
+      .fontSize(18)
+      .text("This certifies that", { align: "center" });
+
+    doc.moveDown(0.5);
+
+    // ----------------------------------------------------
+    // Step 7 — Student Name (Make it huge)
+    // ----------------------------------------------------
+    doc
+      .fontSize(34)
+      .fillColor("#E91E63")
+      .text(req.user.name.toUpperCase(), { align: "center" });
+
+    doc.moveDown(0.5);
+
+    doc
+      .fontSize(18)
+      .fillColor("#000")
+      .text("has successfully completed", { align: "center" });
+
+    doc.moveDown(0.5);
+
+    // ----------------------------------------------------
+    // Step 8 — Course Name
+    // ----------------------------------------------------
+    doc
+      .fontSize(24)
+      .fillColor("black")
+      .text(enrollment.course.title, { align: "center" });
+
+    doc.moveDown(0.5);
+
+    doc
+      .fontSize(16)
+      .text(`Completion Date: ${new Date().toLocaleDateString()}`, { align: "center" });
+
+    doc.moveDown(0.5);
+
+    // ----------------------------------------------------
+    // Step 9 — Certificate Number
+    // ----------------------------------------------------
+    doc
+      .fontSize(14)
+      .fillColor("gray")
+      .text(`Certificate No: ${enrollment.certificateNumber}`, { align: "center" });
+
+    // ----------------------------------------------------
+    // Step 10 — QR Code Placement
+    // ----------------------------------------------------
+    doc.image(qrBuffer, 650, 410, { width: 110 });
+
+    // ----------------------------------------------------
+    // Step 11 — Director Signature Placement
+    // ----------------------------------------------------
+    doc.image(
+      path.join(__dirname, "../assets/signature.png"),
+      85,
+      410,
+      { width: 150 }
+    );
+
+    doc
+      .fontSize(14)
+      .fillColor("#000")
+      .text("__________________________", 60, 475);
+
+    doc.text("Nakky Academy Director", 65, 495);
 
     doc.end();
-    return null;
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
-    return null;
+    res.status(500).json({
+      error: err.message
+    });
   }
 };

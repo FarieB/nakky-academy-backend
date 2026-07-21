@@ -1,8 +1,7 @@
 const User = require("../models/user");
 
-
 // ==============================
-// Advanced Worker Search (Optimized)
+// Advanced Worker Search
 // ==============================
 exports.searchWorkersAdvanced = async (req, res) => {
   try {
@@ -21,124 +20,120 @@ exports.searchWorkersAdvanced = async (req, res) => {
       maxSalary,
       page = 1,
       limit = 10,
-      sortBy = "rating" // rating | experience | salary
+      sortBy = "rating",
     } = req.query;
 
-    const filter = { role: "employee" };
-
-    // ==============================
-    // Filters
-    // ==============================
-    // Map for direct equality filters
-    const directFilters = {
-      workerType,
-      province,
-      city,
-      minRating,
-      availabilityStatus,
-      workPreference,
-      verifiedBadge
+    const filter = {
+      role: "employee",
     };
 
-    Object.entries(directFilters).forEach(([key, value]) => {
-      if (value !== undefined && value !== "") {
-        filter[key] = value;
-      }
-    });
-
-    // Range filters
-    if (minExperience || maxExperience) {
-      filter.experience = {};
-      if (minExperience) filter.experience.$gte = Number(minExperience);
-      if (maxExperience) filter.experience.$lte = Number(maxExperience);
-    }
-
-    if (minSalary || maxSalary) {
-      filter.salary = {};
-      if (minSalary) filter.salary.$gte = Number(minSalary);
-      if (maxSalary) filter.salary.$lte = Number(maxSalary);
-    }
-
-    // Skills filter
-    if (skills) {
-      filter.skills = { $all: skills.split(",").map(skill => skill.trim()) };
-    }
-
-    // Pagination
-    const skip = (Number(page) - 1) * Number(limit);
-
-    // Sort options mapping
-    const sortOptions = {
-      rating: { rating: -1 },
-      experience: { experience: -1 },
-      salary: { salary: -1 }
-    };
-    const sortCriteria = sortOptions[sortBy] || sortOptions.rating;
-
-    const workers = await User.find(filter)
-      .sort(sortCriteria)
-      .skip(skip)
-      .limit(Number(limit));
-
-    res.status(200).json({ data: workers });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
+    // ============================
+    // Basic Filters
+    // ============================
     if (workerType) filter.workerType = workerType;
 
     if (province) {
-      filter.province = { $regex: province, $options: "i" };
+      filter.province = {
+        $regex: province,
+        $options: "i",
+      };
     }
 
     if (city) {
-      filter.city = { $regex: city, $options: "i" };
+      filter.city = {
+        $regex: city,
+        $options: "i",
+      };
     }
 
+    // ============================
+    // Experience
+    // ============================
     if (minExperience || maxExperience) {
       filter.yearsExperience = {};
-      if (minExperience) filter.yearsExperience.$gte = Number(minExperience);
-      if (maxExperience) filter.yearsExperience.$lte = Number(maxExperience);
+
+      if (minExperience) {
+        filter.yearsExperience.$gte = Number(minExperience);
+      }
+
+      if (maxExperience) {
+        filter.yearsExperience.$lte = Number(maxExperience);
+      }
     }
 
+    // ============================
+    // Skills
+    // ============================
     if (skills) {
-      const skillsArray = skills.split(",").map(s => s.trim());
-      filter.skills = { $in: skillsArray }; // match ANY skill
+      const skillsArray = skills
+        .split(",")
+        .map((skill) => skill.trim());
+
+      filter.skills = {
+        $in: skillsArray,
+      };
     }
 
+    // ============================
+    // Rating
+    // ============================
     if (minRating) {
-      filter.averageRating = { $gte: Number(minRating) };
+      filter.averageRating = {
+        $gte: Number(minRating),
+      };
     }
 
-    if (availabilityStatus) filter.availabilityStatus = availabilityStatus;
+    // ============================
+    // Availability
+    // ============================
+    if (availabilityStatus) {
+      filter.availabilityStatus = availabilityStatus;
+    }
 
-    if (workPreference) filter.workPreference = workPreference;
+    if (workPreference) {
+      filter.workPreference = workPreference;
+    }
 
-export const searchController = async (req, res) => {
-
-    if (verifiedBadge) {
+    if (verifiedBadge !== undefined) {
       filter.verifiedBadge = verifiedBadge === "true";
     }
 
+    // ============================
+    // Salary
+    // ============================
     if (minSalary || maxSalary) {
       filter.expectedSalary = {};
-      if (minSalary) filter.expectedSalary.$gte = Number(minSalary);
-      if (maxSalary) filter.expectedSalary.$lte = Number(maxSalary);
+
+      if (minSalary) {
+        filter.expectedSalary.$gte = Number(minSalary);
+      }
+
+      if (maxSalary) {
+        filter.expectedSalary.$lte = Number(maxSalary);
+      }
     }
 
-    // ==============================
+    // ============================
     // Sorting
-    // ==============================
+    // ============================
     let sort = {};
 
-    if (sortBy === "rating") sort = { averageRating: -1 };
-    if (sortBy === "experience") sort = { yearsExperience: -1 };
-    if (sortBy === "salary") sort = { expectedSalary: 1 };
+    switch (sortBy) {
+      case "experience":
+        sort = { yearsExperience: -1 };
+        break;
 
-    // ==============================
+      case "salary":
+        sort = { expectedSalary: 1 };
+        break;
+
+      default:
+        sort = { averageRating: -1 };
+    }
+
+    // ============================
     // Pagination
-    // ==============================
+    // ============================
     const skip = (Number(page) - 1) * Number(limit);
 
     const workers = await User.find(filter)
@@ -149,14 +144,15 @@ export const searchController = async (req, res) => {
 
     const total = await User.countDocuments(filter);
 
-    res.json({
+    return res.json({
       page: Number(page),
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / Number(limit)),
       totalResults: total,
-      results: workers
+      results: workers,
     });
-
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 };

@@ -105,67 +105,152 @@ if (role === "employee") {
   });
 }
 
-    // ==========================
-    // Student View
-    // ==========================
-    if (role === "student") {
-      const enrollments = await Enrollment.find({
-        student: userId, // ✅ FIX (was wrong before)
-      }).populate("course");
+// ==========================
+// Student View
+// ==========================
+if (role === "student") {
 
-      const courses = await Course.find();
+  // Student profile
+  const profile = await User.findById(userId).select("-password");
 
-      return res.json({
+  // Courses the student is enrolled in
+  const enrollments = await Enrollment.find({
+    student: userId,
+  }).populate("course");
+
+  // Courses not yet enrolled in
+  const enrolledIds = enrollments.map((e) => e.course._id);
+
+  const recommendedCourses = await Course.find({
+    _id: { $nin: enrolledIds },
+  }).limit(5);
+
+  // Certificates
+  const certificates = enrollments.filter(
+    (e) => e.certificateIssued
+  );
+
+  // Completed courses
+  const completedCourses = enrollments.filter(
+    (e) => e.completed
+  );
+
+  // Temporary announcements
+  const announcements = [
+    {
+      title: "Welcome to Nakky Academy",
+      message:
+        "Continue learning and complete your courses to earn certificates.",
+    },
+    {
+      title: "New Courses Available",
+      message:
+        "Browse our latest professional caregiving courses.",
+    },
+  ];
+
+  return res.json({
+    role: "student",
+
+    profile,
+
+    enrollments,
+
+    recommendedCourses,
+
+    certificates,
+
+    completedCourses,
+
+    announcements,
+  });
+}
+
+// ==========================
+// Admin View
+// ==========================
+if (role === "admin") {
+
+    const profile = await User.findById(userId).select("-password");
+
+    const totalUsers = await User.countDocuments();
+
+    const totalStudents = await User.countDocuments({
         role: "student",
-        enrollments,
-        courses,
-      });
-    }
+    });
 
-    // ==========================
-    // Admin View
-    // ==========================
-    if (role === "admin") {
-      const jobs = await JobPost.find().sort({ createdAt: -1 });
+    const totalEmployees = await User.countDocuments({
+        role: "employee",
+    });
 
-      const invitations = await JobInvitation.find()
-        .populate("candidate", "name workerType skills yearsExperience verifiedBadge")
-        .populate("employer", "name")
-        .populate("job");
+    const totalEmployers = await User.countDocuments({
+        role: "employer",
+    });
 
-      const hires = await Hire.find()
-        .populate("candidate", "name workerType skills yearsExperience verifiedBadge")
-        .populate("employer", "name")
-        .populate("job");
+    const totalCourses = await Course.countDocuments();
 
-      const messages = await Message.find()
-        .populate("sender", "name")
-        .populate("receiver", "name")
-        .sort({ createdAt: -1 });
+    const totalJobs = await JobPost.countDocuments();
 
-      const candidateStats = await User.aggregate([
-        { $match: { role: "employee" } },
-        { $group: { _id: "$verificationStatus", count: { $sum: 1 } } },
-      ]);
+    const pendingVerifications =
+        await User.find({
+            verificationStatus: "pending",
+        })
+        .select("name email")
+        .limit(5);
 
-      const stats = {
-        totalJobs: jobs.length,
-        totalInvitations: invitations.length,
-        totalHires: hires.length,
-        totalMessages: messages.length,
-        candidateVerification: candidateStats,
-      };
+    const recentUsers =
+        await User.find()
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select("name role createdAt");
 
-      return res.json({
+    return res.json({
+
         role: "admin",
-        stats,
-        jobs,
-        invitations,
-        hires,
-        messages,
-      });
-    }
 
+        profile,
+
+        stats: {
+            totalUsers,
+            totalStudents,
+            totalEmployees,
+            totalEmployers,
+            totalCourses,
+            totalJobs,
+            revenue: 0
+        },
+
+        pendingVerifications,
+
+        recentUsers,
+
+        recentActivity: [
+
+            {
+                message:
+                    "New caregiver registered"
+            },
+
+            {
+                message:
+                    "Employer purchased subscription"
+            },
+
+            {
+                message:
+                    "New course published"
+            },
+
+            {
+                message:
+                    "Verification approved"
+            }
+
+        ]
+
+    });
+
+}
     res.status(403).json({ message: "Unauthorized role" });
   } catch (err) {
     console.error(err);

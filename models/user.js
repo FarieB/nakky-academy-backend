@@ -1,88 +1,82 @@
 const mongoose = require("mongoose");
 
-const UserSchema = new mongoose.Schema({
-
+const UserSchema = new mongoose.Schema(
+  {
     role: {
-        type: String,
-        enum: [
-            "employer",
-            "employee",
-            "student",
-            "admin"
-        ],
-        required: true
+      type: String,
+      enum: ["employer", "employee", "student", "admin"],
+      required: true,
     },
 
     name: {
-        type: String,
-        required: true,
-        trim: true
+      type: String,
+      required: true,
+      trim: true,
     },
 
     email: {
-        type: String,
-        unique: true,
-        required: true,
-        lowercase: true,
-        trim: true
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
     },
 
     password: {
-        type: String,
-        required: true
+      type: String,
+      required: true,
     },
 
-    phone: String,
+    phone: {
+      type: String,
+    },
 
-    profilePhoto: String,
+    
+
+    profilePhoto: {
+      type: String,
+    },
 
     subscriptionStatus: {
-        type: String,
-        enum: [
-            "active",
-            "inactive"
-        ],
-        default: "inactive"
+      type: String,
+      enum: ["active", "inactive"],
+      default: "inactive",
     },
 
-    subscriptionExpiry: Date,
+    subscriptionExpiry: {
+      type: Date,
+    },
 
     currentSubscription: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Subscription"
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Subscription",
     },
 
     isVerified: {
-        type: Boolean,
-        default: false
+      type: Boolean,
+      default: false,
     },
 
     verificationStatus: {
-        type: String,
-        enum: [
-            "unverified",
-            "pending",
-            "verified",
-            "rejected"
-        ],
-        default: "unverified"
+      type: String,
+      enum: ["unverified", "pending", "verified", "rejected"],
+      default: "unverified",
     },
 
     verifiedBadge: {
-        type: Boolean,
-        default: false
+      type: Boolean,
+      default: false,
     },
 
     hasPaidVerificationFee: {
-        type: Boolean,
-        default: false
+      type: Boolean,
+      default: false,
     },
+  },
+  {
+    timestamps: true,
+  }
+);
 
-    createdAt: {
-        type: Date,
-        default: Date.now
-    }
-
-});
-
-module.exports = mongoose.model("User", UserSchema);
+// Prevent OverwriteModelError
+module.exports = mongoose.models.User || mongoose.model("User", UserSchema);

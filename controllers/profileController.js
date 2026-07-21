@@ -1,19 +1,16 @@
 const User = require("../models/user");
 
-
 // ==============================
 // Update Worker Profile (EMPLOYEE ONLY)
 // ==============================
 exports.updateWorkerProfile = async (req, res) => {
   try {
-    // Only employees can update worker profiles
     if (req.user.role !== "employee") {
       return res.status(403).json({
-        message: "Only employees can update worker profiles"
+        message: "Only employees can update worker profiles",
       });
     }
 
-    // Only allow safe fields to be updated
     const allowedFields = [
       "workerType",
       "skills",
@@ -23,7 +20,7 @@ exports.updateWorkerProfile = async (req, res) => {
       "city",
       "availabilityStatus",
       "workPreference",
-      "bio"
+      "bio",
     ];
 
     const updates = {};
@@ -41,19 +38,17 @@ exports.updateWorkerProfile = async (req, res) => {
     ).select("-password");
 
     return res.json(updatedUser);
-
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 };
 
-
 // ==============================
-// View Worker Profile
+// Search Workers
 // ==============================
-// Search Workers (Filters)
-// ==============================
-exports.searchWorkers = (req, res) => {
+exports.searchWorkers = async (req, res) => {
   try {
     const {
       workerType,
@@ -63,42 +58,51 @@ exports.searchWorkers = (req, res) => {
       workPreference,
       minExperience,
       maxExperience,
-      keyword
+      keyword,
     } = req.query;
 
-    const filter = { role: "employee" };
+    const filter = {
+      role: "employee",
+    };
 
-    // Basic filters mapping
-    const basicFilters = { workerType, province, availabilityStatus, workPreference };
-    Object.entries(basicFilters).forEach(([key, value]) => {
-      if (value) filter[key] = value;
-    });
+    if (workerType) filter.workerType = workerType;
+    if (province) filter.province = province;
+    if (availabilityStatus)
+      filter.availabilityStatus = availabilityStatus;
+    if (workPreference) filter.workPreference = workPreference;
 
-const getWorkers = async (req, res) => {
-const getLabWorkers = async (req, res) => {
-  try {
-    // Rating filter
     if (minRating) {
-      filter.averageRating = { $gte: Number(minRating) };
-    }
-
-    // Experience filter
-    if (minExperience || maxExperience) {
-      filter.experience = {
-        ...(minExperience && { $gte: Number(minExperience) }),
-        ...(maxExperience && { $lte: Number(maxExperience) })
+      filter.averageRating = {
+        $gte: Number(minRating),
       };
     }
 
-    // Keyword filter
+    if (minExperience || maxExperience) {
+      filter.yearsExperience = {};
+
+      if (minExperience) {
+        filter.yearsExperience.$gte = Number(minExperience);
+      }
+
+      if (maxExperience) {
+        filter.yearsExperience.$lte = Number(maxExperience);
+      }
+    }
+
     if (keyword) {
-      filter.$text = { $search: keyword };
+      filter.$or = [
+        { name: { $regex: keyword, $options: "i" } },
+        { bio: { $regex: keyword, $options: "i" } },
+        { skills: { $in: [new RegExp(keyword, "i")] } },
+      ];
     }
 
     const workers = await User.find(filter).select("-password");
-    return res.json(workers);
 
+    return res.json(workers);
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 };

@@ -1,7 +1,6 @@
 const Verification = require("../models/Verification");
 const User = require("../models/user");
 
-
 // ==============================
 // EMPLOYEE: Submit verification
 // ==============================
@@ -9,72 +8,70 @@ exports.submitVerification = async (req, res) => {
   try {
     if (req.user.role !== "employee") {
       return res.status(403).json({
-        message: "Only employees can request verification"
-    });
-  }
-
-  const user = await User.findById(req.user._id);
-
-  // ✅ Must pay verification first
-  const mustPayVerification = async (req, res) => {
-    if (!user.hasPaidVerificationFee) {
-      return res.status(403).json({
-        message: "Please pay verification fee first"
+        message: "Only employees can request verification",
       });
     }
 
-    // ✅ Prevent duplicate submissions
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    // Must pay verification fee first
+    if (!user.hasPaidVerificationFee) {
+      return res.status(403).json({
+        message: "Please pay verification fee first",
+      });
+    }
+
+    // Prevent duplicate submissions
     const existing = await Verification.findOne({
-      user: req.user._id
+      user: req.user._id,
     });
 
     if (existing) {
       return res.status(400).json({
-        message: "Verification already submitted"
+        message: "Verification already submitted",
       });
     }
 
-    // Continue with submission logic here
-  };
-} catch (error) {
-  console.error(error);
-  res.status(500).json({
-    message: "Server error"
-  });
-}
+    // ID document is required
+    if (!req.files || !req.files.idDocument) {
+      return res.status(400).json({
+        message: "ID document is required",
+      });
+    }
 
-    return res.status(400).json({
-      message: "ID document is required"
+    const idDocument = req.files.idDocument[0].filename;
+
+    const policeClearance =
+      req.files.policeClearance && req.files.policeClearance.length > 0
+        ? req.files.policeClearance[0].filename
+        : null;
+
+    const verification = await Verification.create({
+      user: req.user._id,
+      idDocument,
+      policeClearance,
+      status: "pending",
     });
-  }
 
-  const idDocument = req.files.idDocument[0].filename;
-  const policeClearance = req.files.policeClearance
-    ? req.files.policeClearance[0].filename
-    : null;
-
-  // ✅ Create verification request
-  const verification = await Verification.create({
-    user: req.user._id,
-    idDocument,
-    policeClearance,
-    status: "pending"
-  });
-
-  // ✅ Update user status
     user.verificationStatus = "pending";
     await user.save();
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Verification submitted successfully ✅",
-      verification
+      verification,
     });
-
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 };
-
 
 // ==============================
 // ADMIN: Get all verifications
@@ -85,14 +82,13 @@ exports.getVerifications = async (req, res) => {
       .populate("user", "name email workerType verificationStatus")
       .sort({ createdAt: -1 });
 
-    res.json(verifications);
-
+    return res.json(verifications);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 };
-
-
 
 // ==============================
 // ADMIN: Approve verification
@@ -103,13 +99,13 @@ exports.approveVerification = async (req, res) => {
 
     if (!verification) {
       return res.status(404).json({
-        message: "Verification not found"
+        message: "Verification not found",
       });
     }
 
     if (verification.status === "approved") {
       return res.status(400).json({
-        message: "Already approved"
+        message: "Already approved",
       });
     }
 
@@ -118,21 +114,18 @@ exports.approveVerification = async (req, res) => {
 
     await User.findByIdAndUpdate(verification.user, {
       verificationStatus: "verified",
-      verifiedBadge: true
+      verifiedBadge: true,
     });
 
-    res.json({
-      message: "Candidate verified successfully ✅"
+    return res.json({
+      message: "Candidate verified successfully ✅",
     });
-    return null;
-
   } catch (error) {
-    res.status(500).json({ message: error.message });
-    return null;
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 };
-
-
 
 // ==============================
 // ADMIN: Reject verification
@@ -143,13 +136,13 @@ exports.rejectVerification = async (req, res) => {
 
     if (!verification) {
       return res.status(404).json({
-        message: "Verification not found"
+        message: "Verification not found",
       });
     }
 
     if (verification.status === "rejected") {
       return res.status(400).json({
-        message: "Already rejected"
+        message: "Already rejected",
       });
     }
 
@@ -158,16 +151,15 @@ exports.rejectVerification = async (req, res) => {
 
     await User.findByIdAndUpdate(verification.user, {
       verificationStatus: "rejected",
-      verifiedBadge: false
+      verifiedBadge: false,
     });
 
-    res.json({
-      message: "Verification rejected ❌"
+    return res.json({
+      message: "Verification rejected ❌",
     });
-    return null;
-
   } catch (error) {
-    res.status(500).json({ message: error.message });
-    return null;
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 };

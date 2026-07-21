@@ -148,6 +148,18 @@ router.post(
 
 //
 // ==============================
+// PAYFAST WEBHOOK ROUTES (UNPROTECTED)
+// ==============================
+//
+
+// Step 4 — PayFast Instant Transaction Notification (ITN)
+router.post(
+  "/payfast/itn",
+  courseController.coursePaymentITN
+);
+
+//
+// ==============================
 // AUTHENTICATED ROUTES
 // ==============================
 //
@@ -163,6 +175,9 @@ router.get("/:courseId", protect, getCourseById);
 // STUDENT ROUTES
 // ==============================
 //
+
+// Purchase Course via PayFast
+router.post("/:courseId/purchase", protect, courseController.purchaseCourse);
 
 // Enroll
 router.post("/:courseId/enroll", protect, enrollCourse);

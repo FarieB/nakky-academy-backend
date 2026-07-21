@@ -1,6 +1,7 @@
 const querystring = require("querystring");
 const axios = require("axios");
 const payfast = require("../config/payfast");
+const crypto = require("crypto");
 
 // ======================================
 // Generate PayFast Signature
@@ -102,5 +103,49 @@ exports.verifyITN = async (payload) => {
         return false;
 
     }
+
+};
+
+
+// ======================================
+// Create Course Payment URL
+// ======================================
+
+exports.createCoursePayment = async ({
+    payment,
+    course,
+    user
+}) => {
+
+    const paymentData = {
+
+        merchant_id: payfast.merchantId,
+        merchant_key: payfast.merchantKey,
+
+        return_url: payfast.returnUrl,
+        cancel_url: payfast.cancelUrl,
+        notify_url: payfast.notifyUrl,
+
+        name_first: user.name || "Student",
+        email_address: user.email,
+
+        m_payment_id: payment.merchantPaymentId,
+
+        amount: Number(course.price).toFixed(2),
+
+        item_name: course.title,
+
+        item_description:
+            course.shortDescription ||
+            course.description ||
+            "Nakky Academy Course",
+
+        custom_str1: "course",
+        custom_str2: course._id.toString(),
+        custom_str3: user._id.toString(),
+
+    };
+
+    return exports.generatePaymentUrl(paymentData);
 
 };

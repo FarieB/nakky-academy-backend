@@ -3,9 +3,9 @@ const QRCode = require("qrcode");
 const path = require("path");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
-const PDFDocument = require("pdfkit");
-const path = require("path");
 const fs = require("fs");
+const Payment = require("../models/Payment");
+const payfastService = require("../services/payfastService");
 
 
 // ==============================
@@ -636,9 +636,7 @@ exports.issueCertificate = async (req, res) => {
 };
 
 
-const PDFDocument = require("pdfkit");
-const path = require("path"); // 💡 Required for Step 6 & 11 asset paths
-const QRCode = require("qrcode"); // 💡 Make sure 'npm install qrcode' is run
+
 
 // ==============================
 // DOWNLOAD CERTIFICATE
@@ -818,5 +816,139 @@ exports.downloadCertificate = async (req, res) => {
     res.status(500).json({
       error: err.message
     });
+  }
+};
+
+// ======================================
+// STUDENT: PURCHASE COURSE
+// ======================================
+exports.purchaseCourse = async (req, res) => {
+  try {
+    const courseId = req.params.courseId;
+
+    // Find course
+    const course = await Course.findById(courseId);
+
+    if (!course) {
+      return res.status(404).json({
+        message: "Course not found",
+      });
+    }
+
+    // Check if already enrolled
+    let enrollment = await Enrollment.findOne({
+      student: req.user._id,
+      course: courseId,
+    });
+
+    if (enrollment && enrollment.paymentStatus === "paid") {
+      return res.status(400).json({
+        message: "You have already purchased this course.",
+      });
+    }
+
+    // Create pending enrollment if it doesn't exist
+    if (!enrollment) {
+      enrollment = await Enrollment.create({
+        student: req.user._id,
+        course: courseId,
+        paymentStatus: "pending",
+        coursePrice: course.price,
+        progress: 0,
+      });
+    }
+
+    // ======================================
+    // Create Payment Record
+    // ======================================
+    const merchantPaymentId =
+      "COURSE-" +
+      Date.now() +
+      "-" +
+      Math.floor(Math.random() * 100000);
+
+    const payment = await Payment.create({
+      user: req.user._id,
+      type: "course",
+      referenceId: course._id,
+      amount: course.price,
+      status: "pending",
+      merchantPaymentId,
+      gateway: "PayFast",
+      paymentMethod: "payfast",
+    });
+
+    // Link the payment back to the enrollment so ITN function works
+    enrollment.paymentReference = payment._id;
+    await enrollment.save();
+
+    // Generate PayFast payment URL
+    const paymentUrl =
+      await payfastService.createCoursePayment({
+        payment,
+        course,
+        user: req.user,
+      });
+
+    return res.status(200).json({
+      message: "Payment initiated successfully.",
+      paymentUrl,
+      paymentId: payment._id,
+      enrollmentId: enrollment._id,
+    });
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      message: "Unable to initiate course purchase.",
+      error: err.message,
+    });
+  }
+};
+
+// ==============================
+// PAYFAST ITN
+// ==============================
+exports.coursePaymentITN = async (req, res) => {
+  try {
+    const valid = await payfastService.verifyITN(req.body);
+
+    if (!valid) {
+      return res.status(400).send("INVALID");
+    }
+
+    const payment = await Payment.findOne({
+      merchantPaymentId: req.body.m_payment_id,
+    });
+
+    if (!payment) {
+      return res.status(404).send("Payment not found");
+    }
+
+    payment.status = "paid";
+    payment.paymentStatus = req.body.payment_status;
+    payment.gatewayReference = req.body.pf_payment_id;
+    payment.paymentDate = new Date();
+    payment.itnPayload = req.body;
+
+    await payment.save();
+
+    const enrollment = await Enrollment.findOne({
+      paymentReference: payment._id,
+    });
+
+    if (enrollment) {
+      enrollment.paymentStatus = "paid";
+      enrollment.paymentDate = new Date();
+
+      await enrollment.save();
+    }
+
+    return res.sendStatus(200);
+
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).send("ERROR");
   }
 };

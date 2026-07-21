@@ -179,6 +179,13 @@ router.get("/:courseId", protect, getCourseById);
 // Purchase Course via PayFast
 router.post("/:courseId/purchase", protect, courseController.purchaseCourse);
 
+// Purchase Course
+router.post(
+  "/:courseId/purchase",
+  protect,
+  courseController.purchaseCourse
+);
+
 // Enroll
 router.post("/:courseId/enroll", protect, enrollCourse);
 

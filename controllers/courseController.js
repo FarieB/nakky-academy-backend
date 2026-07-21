@@ -32,13 +32,25 @@ exports.getCourseById = async (req, res) => {
       return res.status(404).json({ message: "Course not found" });
     }
 
-    res.json(course);
-    return null;
+    // UPGRADE: Check student's enrollment and payment records
+    const enrollment = await Enrollment.findOne({
+      student: req.user._id,
+      course: course._id,
+    });
+
+    const isEnrolled = enrollment?.paymentStatus === "paid";
+
+    return res.status(200).json({
+      ...course.toObject(),
+      isEnrolled,
+      progress: enrollment?.progress || 0,
+    });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
-    return null;
+    return res.status(500).json({ error: err.message });
   }
 };
+
 
 
 // ==============================
@@ -933,13 +945,16 @@ exports.coursePaymentITN = async (req, res) => {
 
     await payment.save();
 
+    // UPGRADE: Match enrollment safely using explicit structural references
     const enrollment = await Enrollment.findOne({
-      paymentReference: payment._id,
+      student: payment.user,
+      course: payment.referenceId,
     });
 
     if (enrollment) {
       enrollment.paymentStatus = "paid";
       enrollment.paymentDate = new Date();
+      enrollment.paymentReference = payment._id; // Records exactly which payment unlocked this course
 
       await enrollment.save();
     }

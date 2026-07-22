@@ -2,9 +2,13 @@ const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema(
   {
+    // ==========================================
+    // AUTHENTICATION
+    // ==========================================
+
     role: {
       type: String,
-      enum: ["employer", "employee", "student", "admin"],
+      enum: ["admin", "student", "employer", "employee"], // "employee" will be displayed as "Candidate" in the app
       required: true,
     },
 
@@ -29,13 +33,32 @@ const UserSchema = new mongoose.Schema(
 
     phone: {
       type: String,
+      trim: true,
     },
 
-    
+    // ==========================================
+    // PROFILE
+    // ==========================================
 
     profilePhoto: {
       type: String,
+      default: "",
     },
+
+    accountStatus: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
+    },
+
+    displayFirstName: {
+      type: Boolean,
+      default: true,
+    },
+
+    // ==========================================
+    // SUBSCRIPTION
+    // ==========================================
 
     subscriptionStatus: {
       type: String,
@@ -52,6 +75,10 @@ const UserSchema = new mongoose.Schema(
       ref: "Subscription",
     },
 
+    // ==========================================
+    // VERIFICATION
+    // ==========================================
+
     isVerified: {
       type: Boolean,
       default: false,
@@ -59,7 +86,12 @@ const UserSchema = new mongoose.Schema(
 
     verificationStatus: {
       type: String,
-      enum: ["unverified", "pending", "verified", "rejected"],
+      enum: [
+        "unverified",
+        "pending",
+        "verified",
+        "rejected",
+      ],
       default: "unverified",
     },
 
@@ -72,6 +104,17 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    // ==========================================
+    // ACTIVITY
+    // ==========================================
+
+    lastSeen: {
+      type: Date,
+      default: Date.now,
+    },
+
+    lastLogin: Date,
   },
   {
     timestamps: true,
@@ -79,4 +122,6 @@ const UserSchema = new mongoose.Schema(
 );
 
 // Prevent OverwriteModelError
-module.exports = mongoose.models.User || mongoose.model("User", UserSchema);
+module.exports =
+  mongoose.models.User ||
+  mongoose.model("User", UserSchema);

@@ -23,9 +23,14 @@ const SubscriptionPlanSchema = new mongoose.Schema(
         required: true
     },
 
-    jobPostLimit: {
+    candidateContactLimit: {
         type: Number,
-        default: 10
+        default: -1
+    },
+
+    candidateSearchLimit: {
+        type: Number,
+        default: -1
     },
 
     features: [{

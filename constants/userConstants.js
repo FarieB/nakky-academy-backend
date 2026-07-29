@@ -2,7 +2,7 @@ module.exports = {
 
     ROLE_EMPLOYER: "employer",
 
-    ROLE_EMPLOYEE: "employee",
+    ROLE_CANDIDATE: "candidate",
 
     ROLE_ADMIN: "admin",
 

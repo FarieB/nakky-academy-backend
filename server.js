@@ -1,9 +1,12 @@
+const http = require("http");
 const express = require("express");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 const cors = require("cors");
-const http = require("http");
 const { Server } = require("socket.io");
+
+// Import the main socket initializer from instructions
+const initializeSocket = require("./socket");
 
 dotenv.config();
 connectDB();
@@ -30,10 +33,12 @@ const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: "*",
-        methods: ["GET", "POST"]
+        methods: ["GET", "POST", "PUT", "DELETE"]
     }
 });
 
+// Initialize Socket Handlers
+initializeSocket(io);
 require("./socket/chatSocket")(io);
 
 // ==============================
@@ -44,8 +49,6 @@ const adminRoutes = require("./routes/adminRoutes");
 const authRoutes = require("./routes/authRoutes");
 const courseRoutes = require("./routes/courseRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
-const employeeRoutes = require("./routes/employeeRoutes");
-const jobRoutes = require("./routes/jobRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
@@ -54,7 +57,8 @@ const recommendationRoutes = require("./routes/recommendationRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
 const searchRoutes = require("./routes/searchRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
-const verificationRoutes = require("./routes/verificationRoutes");
+
+
 
 // ==============================
 // API Routes
@@ -64,10 +68,6 @@ app.use("/api/auth", authRoutes);
 
 app.use("/api/payments", paymentRoutes);
 
-app.use("/api/employees", employeeRoutes);
-
-app.use("/api/jobs", jobRoutes);
-
 app.use("/api/courses", courseRoutes);
 
 app.use("/api/dashboard", dashboardRoutes);
@@ -75,8 +75,6 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/admin", adminRoutes);
 
 app.use("/api/subscriptions", subscriptionRoutes);
-
-app.use("/api/verification", verificationRoutes);
 
 app.use("/api/recommendations", recommendationRoutes);
 
@@ -89,6 +87,7 @@ app.use("/api/search", searchRoutes);
 app.use("/api/messages", messageRoutes);
 
 app.use("/api/notifications", notificationRoutes);
+
 
 // ==============================
 // Health Check
@@ -121,6 +120,6 @@ app.use((err, req, res, _next) => {
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-    // Logging server start; necessary for startup monitoring.
-    console.log(`🚀 Nakky Academy API running on port ${PORT}`); // skipcq: JS-0002
+    console.log(`🚀 Server running on port ${PORT}`);
 });
+

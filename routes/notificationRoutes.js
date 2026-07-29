@@ -6,6 +6,7 @@ const protect = require("../middleware/authMiddleware");
 const {
   getMyNotifications,
   markAsRead,
+  getUnreadCount,
 } = require("../controllers/notificationController");
 
 // ==============================
@@ -17,5 +18,11 @@ router.get("/", protect, getMyNotifications);
 // Mark notification read
 // ==============================
 router.put("/:id/read", protect, markAsRead);
+
+router.get(
+    "/unread-count",
+    protect,
+    getUnreadCount
+);
 
 module.exports = router;

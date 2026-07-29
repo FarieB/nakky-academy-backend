@@ -1,12 +1,12 @@
-const User = require("../models/user");
+const Candidate = require("../models/candidateProfile");
 
-// ==============================
-// Advanced Worker Search
-// ==============================
-exports.searchWorkersAdvanced = async (req, res) => {
+// =================================
+// Advanced Candidate Search
+// =================================
+exports.searchCandidatesAdvanced = async (req, res) => {
   try {
     const {
-      workerType,
+      workType,
       province,
       city,
       minExperience,
@@ -24,14 +24,19 @@ exports.searchWorkersAdvanced = async (req, res) => {
     } = req.query;
 
     const filter = {
-      role: "employee",
+      profileActive: true,
     };
 
-    // ============================
-    // Basic Filters
-    // ============================
-    if (workerType) filter.workerType = workerType;
+    // =================================
+    // Work Types (Array)
+    // =================================
+    if (workType) {
+      filter.workTypes = workType;
+    }
 
+    // =================================
+    // Province
+    // =================================
     if (province) {
       filter.province = {
         $regex: province,
@@ -39,6 +44,9 @@ exports.searchWorkersAdvanced = async (req, res) => {
       };
     }
 
+    // =================================
+    // City
+    // =================================
     if (city) {
       filter.city = {
         $regex: city,
@@ -46,9 +54,9 @@ exports.searchWorkersAdvanced = async (req, res) => {
       };
     }
 
-    // ============================
+    // =================================
     // Experience
-    // ============================
+    // =================================
     if (minExperience || maxExperience) {
       filter.yearsExperience = {};
 
@@ -61,46 +69,42 @@ exports.searchWorkersAdvanced = async (req, res) => {
       }
     }
 
-    // ============================
+    // =================================
     // Skills
-    // ============================
+    // =================================
     if (skills) {
-      const skillsArray = skills
+      const skillArray = skills
         .split(",")
         .map((skill) => skill.trim());
 
       filter.skills = {
-        $in: skillsArray,
+        $in: skillArray,
       };
     }
 
-    // ============================
+    // =================================
     // Rating
-    // ============================
+    // =================================
     if (minRating) {
       filter.averageRating = {
         $gte: Number(minRating),
       };
     }
 
-    // ============================
+    // =================================
     // Availability
-    // ============================
+    // =================================
     if (availabilityStatus) {
       filter.availabilityStatus = availabilityStatus;
     }
 
     if (workPreference) {
-      filter.workPreference = workPreference;
+      filter.workPreferences = workPreference;
     }
 
-    if (verifiedBadge !== undefined) {
-      filter.verifiedBadge = verifiedBadge === "true";
-    }
-
-    // ============================
+    // =================================
     // Salary
-    // ============================
+    // =================================
     if (minSalary || maxSalary) {
       filter.expectedSalary = {};
 
@@ -113,9 +117,9 @@ exports.searchWorkersAdvanced = async (req, res) => {
       }
     }
 
-    // ============================
+    // =================================
     // Sorting
-    // ============================
+    // =================================
     let sort = {};
 
     switch (sortBy) {
@@ -131,24 +135,31 @@ exports.searchWorkersAdvanced = async (req, res) => {
         sort = { averageRating: -1 };
     }
 
-    // ============================
-    // Pagination
-    // ============================
     const skip = (Number(page) - 1) * Number(limit);
 
-    const workers = await User.find(filter)
-      .select("-password")
+    let candidates = await Candidate.find(filter)
+      .populate(
+        "user",
+        "name profilePhoto verifiedBadge"
+      )
       .sort(sort)
       .skip(skip)
       .limit(Number(limit));
 
-    const total = await User.countDocuments(filter);
+    // Filter verified candidates if requested
+    if (verifiedBadge === "true") {
+      candidates = candidates.filter(
+        (candidate) => candidate.user?.verifiedBadge
+      );
+    }
+
+    const total = await Candidate.countDocuments(filter);
 
     return res.json({
       page: Number(page),
       totalPages: Math.ceil(total / Number(limit)),
       totalResults: total,
-      results: workers,
+      results: candidates,
     });
   } catch (error) {
     return res.status(500).json({

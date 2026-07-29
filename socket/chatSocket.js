@@ -19,12 +19,11 @@ module.exports = (io) => {
 
       try {
 
-        const { senderId, receiverId, jobId, message } = data;
+        const { senderId, receiverId, message } = data;
 
         const newMessage = await Message.create({
           sender: senderId,
           receiver: receiverId,
-          job: jobId,
           message
         });
 

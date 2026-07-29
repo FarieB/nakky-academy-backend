@@ -1,6 +1,11 @@
 const User = require("../models/User");
-const CandidateProfile = require("../models/CandidateProfile");
 const EmployerProfile = require("../models/EmployerProfile");
+const CandidateProfile = require("../models/CandidateProfile");
+const SavedCandidate = require("../models/SavedCandidate");
+const {
+  createNotification,
+} = require("../services/notificationService");
+
 
 //
 // =====================================================
@@ -10,7 +15,7 @@ const EmployerProfile = require("../models/EmployerProfile");
 
 exports.createCandidateProfile = async (req, res) => {
   try {
-    if (req.user.role !== "employee") {
+    if (req.user.role !== "candidate") {
       return res.status(403).json({
         message: "Only candidates can create profiles.",
       });
@@ -87,6 +92,81 @@ exports.createCandidateProfile = async (req, res) => {
       error: err.message,
     });
   }
+};
+
+// ======================================
+// Upload Candidate Verification Documents
+// ======================================
+exports.uploadDocuments = async (req, res) => {
+    try {
+
+        const user = await User.findById(req.user._id);
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found",
+            });
+        }
+
+        if (user.role !== "candidate") {
+            return res.status(403).json({
+                message: "Only candidates can upload documents",
+            });
+        }
+
+        if (!user.hasPaidVerificationFee) {
+            return res.status(403).json({
+                message: "Please pay the R100 verification fee first.",
+            });
+        }
+
+        const {
+            idDocument,
+            policeClearance,
+            references,
+            qualifications,
+        } = req.body;
+
+        if (!idDocument || !references || !qualifications) {
+            return res.status(400).json({
+                message:
+                    "ID document, references and qualifications are required.",
+            });
+        }
+
+        user.uploadedDocuments = {
+            idDocument,
+            policeClearance: policeClearance || null,
+            references,
+            qualifications,
+        };
+
+        user.verificationStatus = "pending";
+        user.isVerified = false;
+        user.verifiedBadge = false;
+
+        user.verificationSubmittedAt = new Date();
+
+        await user.save();
+
+        const {
+          refreshAdminDashboard,
+        } = require("../services/socketService");
+
+        refreshAdminDashboard();
+
+        return res.json({
+            message:
+                "Documents uploaded successfully. Awaiting admin verification.",
+        });
+
+    } catch (error) {
+
+        return res.status(500).json({
+            message: error.message,
+        });
+
+    }
 };
 
 //
@@ -366,90 +446,150 @@ exports.updateEmployerProfile = async (req, res) => {
   }
 };
 
-//
-// =====================================================
+// ======================================
 // SAVE CANDIDATE
-// =====================================================
-//
+// ======================================
 
 exports.saveCandidate = async (req, res) => {
   try {
 
-    const employer =
-      await EmployerProfile.findOne({
-        user: req.user._id,
+    if (req.user.role !== "employer") {
+      return res.status(403).json({
+        message: "Only employers can save candidates.",
       });
+    }
 
-    if (!employer) {
+    const { candidateId } = req.body;
+
+    const candidate = await CandidateProfile.findById(candidateId);
+
+    if (!candidate) {
       return res.status(404).json({
-        message: "Employer profile not found.",
+        message: "Candidate not found.",
       });
     }
 
-    if (
-      !employer.savedCandidates.includes(
-        req.params.candidateId
-      )
-    ) {
+    const existing = await SavedCandidate.findOne({
+      employer: req.user._id,
+      candidate: candidateId,
+    });
 
-      employer.savedCandidates.push(
-        req.params.candidateId
-      );
-
-      await employer.save();
-
+    if (existing) {
+      return res.status(400).json({
+        message: "Candidate already saved.",
+      });
     }
 
-    res.json({
-      message: "Candidate saved successfully.",
+    const saved = await SavedCandidate.create({
+      employer: req.user._id,
+      candidate: candidateId,
     });
+
+    // ==============================
+    // Create notification
+    // ==============================
+
+    const employer = await User.findById(req.user._id)
+      .select("firstName name");
+
+    const employerName =
+      employer.firstName ||
+      employer.name.split(" ")[0];
+
+    await createNotification({
+
+      user: candidate.user,
+
+      sender: req.user._id,
+
+      title: "Profile Saved",
+
+      message: `${employerName} saved your profile.`,
+
+      type: "candidate_saved",
+
+      action: "open_profile",
+
+      actionData: {
+        employerId: req.user._id,
+        employerName: employerName,
+      },
+
+    });
+
+    res.status(201).json(saved);
 
   } catch (err) {
+
     res.status(500).json({
-      error: err.message,
+      message: err.message,
     });
+
   }
 };
 
-//
-// =====================================================
-// REMOVE SAVED CANDIDATE
-// =====================================================
-//
 
-exports.removeSavedCandidate = async (req, res) => {
+// ======================================
+// GET SAVED CANDIDATES
+// ======================================
+
+exports.getSavedCandidates = async (req, res) => {
   try {
 
-    const employer =
-      await EmployerProfile.findOne({
-        user: req.user._id,
+    const saved = await SavedCandidate.find({
+      employer: req.user._id,
+    })
+      .populate({
+        path: "candidate",
+        populate: {
+          path: "user",
+          select:
+            "firstName profilePhoto verifiedBadge",
+        },
+      })
+      .sort({
+        createdAt: -1,
       });
 
-    if (!employer) {
-      return res.status(404).json({
-        message: "Employer profile not found.",
-      });
-    }
-
-    employer.savedCandidates =
-      employer.savedCandidates.filter(
-        (candidate) =>
-          candidate.toString() !==
-          req.params.candidateId
-      );
-
-    await employer.save();
-
-    res.json({
-      message: "Candidate removed.",
-    });
+    res.json(saved);
 
   } catch (err) {
     res.status(500).json({
-      error: err.message,
+      message: err.message,
     });
   }
 };
+
+// ======================================
+// REMOVE SAVED CANDIDATE
+// ======================================
+
+exports.removeSavedCandidate =
+  async (req, res) => {
+    try {
+
+      const removed = await SavedCandidate.findOneAndDelete({
+        employer: req.user._id,
+        candidate: req.params.id,
+      });
+
+      if (!removed) {
+        return res.status(404).json({
+          message: "Saved candidate not found.",
+        });
+      }
+
+      res.json({
+        message: "Candidate removed.",
+      });
+
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  };
+
 
 //
 // =====================================================
@@ -707,6 +847,8 @@ exports.activateCandidateProfile = async (req, res) => {
 
     await profile.save();
 
+    refreshAdminDashboard();
+
     res.json({
       message: "Profile activated.",
       profile
@@ -743,6 +885,8 @@ exports.deactivateCandidateProfile = async (req, res) => {
     profile.profileActive = false;
 
     await profile.save();
+
+    refreshAdminDashboard();
 
     res.json({
       message: "Profile deactivated.",
@@ -782,6 +926,8 @@ exports.activateEmployerProfile = async (req, res) => {
 
     await profile.save();
 
+    refreshAdminDashboard();
+
     res.json({
       message: "Employer profile activated.",
       profile
@@ -819,6 +965,8 @@ exports.deactivateEmployerProfile = async (req, res) => {
     profile.hiringStatus = "Paused";
 
     await profile.save();
+
+    refreshAdminDashboard();
 
     res.json({
       message: "Employer profile paused.",
@@ -974,107 +1122,127 @@ exports.getAllEmployers = async (req, res) => {
   }
 };
 
-//
 // =====================================================
 // ADMIN - VERIFY CANDIDATE
 // =====================================================
-//
 
 exports.verifyCandidate = async (req, res) => {
   try {
-
     if (req.user.role !== "admin") {
       return res.status(403).json({
-        message: "Admin only."
+        message: "Admin only.",
       });
     }
 
-    const candidate =
-      await CandidateProfile.findById(
-        req.params.candidateId
-      );
+    const candidate = await CandidateProfile.findById(
+      req.params.candidateId
+    );
 
     if (!candidate) {
       return res.status(404).json({
-        message: "Candidate not found."
+        message: "Candidate not found.",
       });
     }
 
     candidate.profileVerified = true;
+    candidate.profileVerificationStatus = "verified";
 
     await candidate.save();
 
-    await User.findByIdAndUpdate(
-      candidate.user,
-      {
-        verifiedBadge: true,
-        verificationStatus: "verified",
-        isVerified: true
-      }
-    );
-
-    res.json({
-      message: "Candidate verified successfully."
+    await User.findByIdAndUpdate(candidate.user, {
+      verifiedBadge: true,
+      verificationStatus: "verified",
+      isVerified: true,
     });
 
+    refreshAdminDashboard();
+
+    // ==========================
+    // Notify Candidate
+    // ==========================
+
+    await createNotification({
+      user: candidate.user,
+      sender: req.user._id,
+      title: "Verification Approved",
+      message:
+        "Congratulations! Your profile has been successfully verified.",
+      type: "verification_approved",
+      action: "open_profile",
+      actionData: {
+        candidateId: candidate._id,
+      },
+    });
+
+    return res.json({
+      message: "Candidate verified successfully.",
+    });
   } catch (err) {
-
-    res.status(500).json({
-      error: err.message
+    return res.status(500).json({
+      error: err.message,
     });
-
   }
 };
 
-//
 // =====================================================
 // ADMIN - REJECT VERIFICATION
 // =====================================================
-//
 
 exports.rejectCandidate = async (req, res) => {
   try {
-
     if (req.user.role !== "admin") {
       return res.status(403).json({
-        message: "Admin only."
+        message: "Admin only.",
       });
     }
 
-    const candidate =
-      await CandidateProfile.findById(
-        req.params.candidateId
-      );
+    const candidate = await CandidateProfile.findById(
+      req.params.candidateId
+    );
 
     if (!candidate) {
       return res.status(404).json({
-        message: "Candidate not found."
+        message: "Candidate not found.",
       });
     }
 
     candidate.profileVerified = false;
+    candidate.profileVerificationStatus = "rejected";
 
     await candidate.save();
 
-    await User.findByIdAndUpdate(
-      candidate.user,
-      {
-        verificationStatus: "rejected",
-        isVerified: false,
-        verifiedBadge: false
-      }
-    );
-
-    res.json({
-      message: "Verification rejected."
+    await User.findByIdAndUpdate(candidate.user, {
+      verificationStatus: "rejected",
+      isVerified: false,
+      verifiedBadge: false,
     });
 
+    refreshAdminDashboard();
+
+    // ==========================
+    // Notify Candidate
+    // ==========================
+
+    await createNotification({
+      user: candidate.user,
+      sender: req.user._id,
+      title: "Verification Rejected",
+      message:
+        "Unfortunately your verification was not approved. Please review your documents and submit them again.",
+      type: "verification_rejected",
+      action: "open_profile",
+      actionData: {
+        candidateId: candidate._id,
+      },
+    });
+
+    return res.json({
+      message: "Verification rejected.",
+    });
   } catch (err) {
-
-    res.status(500).json({
-      error: err.message
+    return res.status(500).json({
+      error: err.message,
     });
-
   }
 };
 
@@ -1175,3 +1343,33 @@ exports.getCandidateById =
       });
     }
   };
+
+  // ======================================
+// GET USER PRESENCE
+// ======================================
+
+exports.getUserPresence = async (req, res) => {
+  try {
+
+    const user = await User.findById(req.params.userId)
+      .select("isOnline lastSeen");
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found"
+      });
+    }
+
+    res.json({
+      isOnline: user.isOnline,
+      lastSeen: user.lastSeen
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
+      message: err.message
+    });
+
+  }
+};

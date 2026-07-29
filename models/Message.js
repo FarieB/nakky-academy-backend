@@ -12,17 +12,28 @@ const MessageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true
-    },
-
-    job: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "JobPost"
-    },
+    },  
 
     message: {
       type: String,
       required: true
-    }
+    },
+
+    status: {
+    type: String,
+    enum: ["sent", "delivered", "read"],
+    default: "sent",
+    },
+
+    deliveredAt: {
+        type: Date,
+        default: null,
+    },
+
+    readAt: {
+        type: Date,
+        default: null,
+    },
   },
   { timestamps: true }
 );

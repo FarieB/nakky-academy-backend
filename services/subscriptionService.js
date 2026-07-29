@@ -1,5 +1,8 @@
 const User = require("../models/User");
 const Subscription = require("../models/Subscription");
+const { createNotification } = require("./notificationService");
+const { refreshAdminDashboard } = require("./socketService");
+
 
 /**
  * =====================================================
@@ -7,6 +10,7 @@ const Subscription = require("../models/Subscription");
  * Called ONLY after successful PayFast payment
  * =====================================================
  */
+
 const activateSubscription = async (userId, subscriptionId) => {
 
     const subscription = await Subscription
@@ -21,7 +25,6 @@ const activateSubscription = async (userId, subscriptionId) => {
         throw new Error("Subscription plan not found.");
     }
 
-    // If already active simply return
     if (subscription.status === "active") {
         return subscription;
     }
@@ -31,26 +34,19 @@ const activateSubscription = async (userId, subscriptionId) => {
     const expiry = new Date(today);
 
     expiry.setDate(
-
         expiry.getDate() +
-
         subscription.plan.durationDays
-
     );
 
     // Expire previous active subscriptions
-
     await Subscription.updateMany(
-
         {
-            employer: { $eq: userId },
-            status: "active"
+            employer: userId,
+            status: "active",
         },
-
         {
-            status: "expired"
+            status: "expired",
         }
-
     );
 
     subscription.status = "active";
@@ -59,21 +55,77 @@ const activateSubscription = async (userId, subscriptionId) => {
 
     await subscription.save();
 
-    await User.findOneAndUpdate(
-
-        { _id: { $eq: userId } },
-
+    const employer = await User.findByIdAndUpdate(
+        userId,
         {
-
             subscriptionStatus: "active",
-
             subscriptionExpiry: expiry,
-
-            currentSubscription: subscription._id
-
+            currentSubscription: subscription._id,
+        },
+        {
+            new: true,
         }
-
     );
+
+    // ==========================================
+    // Notify Employer
+    // ==========================================
+
+    await createNotification({
+
+        user: employer._id,
+
+        sender: null,
+
+        title: "Subscription Activated",
+
+        message: `Your ${subscription.plan.name} subscription has been activated successfully and is valid until ${expiry.toDateString()}.`,
+
+        type: "subscription_activated",
+
+        action: "open_subscription",
+
+        actionData: {
+            subscriptionId: subscription._id,
+            expires: expiry,
+        },
+
+    });
+
+    // ==========================================
+    // Notify Admins
+    // ==========================================
+
+    const admins = await User.find({
+        role: "admin",
+    }).select("_id");
+
+    for (const admin of admins) {
+
+        await createNotification({
+
+            user: admin._id,
+
+            sender: employer._id,
+
+            title: "New Employer Subscription",
+
+            message: `${employer.name} activated a ${subscription.plan.name} subscription.`,
+
+            type: "subscription_purchase",
+
+            action: "open_subscription",
+
+            actionData: {
+                employerId: employer._id,
+                subscriptionId: subscription._id,
+            },
+
+        });
+
+    }
+
+    refreshAdminDashboard();
 
     return subscription;
 
@@ -110,6 +162,28 @@ const cancelSubscription = async (subscriptionId) => {
 
     );
 
+    await createNotification({
+
+        user: subscription.employer,
+
+        sender: null,
+
+        title: "Subscription Cancelled",
+
+        message: "Your employer subscription has been cancelled.",
+
+        type: "subscription_cancelled",
+
+        action: "open_subscription",
+
+        actionData: {
+            subscriptionId: subscription._id,
+        },
+
+    });
+
+    refreshAdminDashboard();
+
     return subscription;
 
 };
@@ -143,6 +217,28 @@ const expireSubscription = async (subscriptionId) => {
         }
 
     );
+
+        await createNotification({
+
+            user: subscription.employer,
+
+            sender: null,
+
+            title: "Subscription Expired",
+
+            message: "Your employer subscription has expired. Renew now to continue accessing employer features.",
+
+            type: "subscription_expired",
+
+            action: "open_subscription",
+
+            actionData: {
+                subscriptionId: subscription._id,
+            },
+
+         });
+
+         refreshAdminDashboard();
 
     return subscription;
 
@@ -198,6 +294,30 @@ const renewSubscription = async (
         }
 
     );
+
+    const employer = await User.findById(subscription.employer);
+
+    await createNotification({
+
+        user: employer._id,
+
+        sender: null,
+
+        title: "Subscription Renewed",
+
+        message: `Your subscription has been renewed until ${expiry.toDateString()}.`,
+
+        type: "subscription_renewed",
+
+        action: "open_subscription",
+
+        actionData: {
+            subscriptionId: subscription._id,
+        },
+
+    });
+
+    refreshAdminDashboard();
 
     return subscription;
 

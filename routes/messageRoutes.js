@@ -6,7 +6,10 @@ const protect = require("../middleware/authMiddleware");
 const {
   sendMessage,
   getConversation,
-  getMyChats
+  getMyChats,
+  markDelivered,
+  markRead,
+  getUnreadCounts
 } = require("../controllers/messageController");
 
 // Send message
@@ -17,5 +20,23 @@ router.get("/:userId", protect, getConversation);
 
 // Get all chats
 router.get("/", protect, getMyChats);
+
+router.put(
+    "/:id/delivered",
+    protect,
+    markDelivered
+);
+
+router.put(
+    "/:id/read",
+    protect,
+    markRead
+);
+
+router.get(
+    "/unread/counts",
+    protect,
+    getUnreadCounts
+);
 
 module.exports = router;

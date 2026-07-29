@@ -1,4 +1,7 @@
 const NotificationModel = require("../models/Notification");
+const {
+    sendNotificationBadge,
+} = require("../services/socketService");
 
 // ==============================
 // Get My Notifications
@@ -37,6 +40,8 @@ exports.markAsRead = async (req, res) => {
 
     await notification.save();
 
+    await sendNotificationBadge(req.user._id);
+
     res.json({
       message: "Notification marked as read",
     });
@@ -47,4 +52,40 @@ exports.markAsRead = async (req, res) => {
     });
     return null;
   }
+};
+
+// ==============================
+// Get Unread Count
+// ==============================
+
+exports.getUnreadCount = async (req, res) => {
+
+    try {
+
+        const unread = await NotificationModel.countDocuments({
+
+            user: req.user._id,
+
+            isRead: false
+
+        });
+
+        res.json({
+
+            unread
+
+        });
+
+    }
+
+    catch (err) {
+
+        res.status(500).json({
+
+            message: err.message
+
+        });
+
+    }
+
 };

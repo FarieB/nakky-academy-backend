@@ -3,53 +3,49 @@ const router = express.Router();
 
 const protect = require("../middleware/authMiddleware");
 const adminOnly = require("../middleware/adminMiddleware");
-const { getRevenue } = require("../controllers/adminController");
 
 const {
-  getPlatformStats,
-  getUsers,
-  getEmployees,
-  getJobs,
-  getCourses,
-  deleteUser,
-  deleteJob
+    getPlatformStats,
+    getRevenue,
+    getUsers,
+    getCandidates,
+    getCourses,
+    deleteUser,
+    deleteCandidate,
+    deleteCourse,
 } = require("../controllers/adminController");
 
 
-// ==============================
-// Admin dashboard
-// ==============================
+// =====================================
+// Dashboard
+// =====================================
 router.get("/stats", protect, adminOnly, getPlatformStats);
 
-// ==============================
-// Admin revenue route
-// ==============================
+
+// =====================================
+// Revenue
+// =====================================
 router.get("/revenue", protect, adminOnly, getRevenue);
 
 
-// ==============================
-// Manage users
-// ==============================
+// =====================================
+// Users
+// =====================================
 router.get("/users", protect, adminOnly, getUsers);
 router.delete("/users/:id", protect, adminOnly, deleteUser);
 
 
-// ==============================
-// Manage employees
-// ==============================
-router.get("/employees", protect, adminOnly, getEmployees);
+// =====================================
+// Candidates
+// =====================================
+router.get("/candidates", protect, adminOnly, getCandidates);
+router.delete("/candidates/:id", protect, adminOnly, deleteCandidate);
 
 
-// ==============================
-// Manage jobs
-// ==============================
-router.get("/jobs", protect, adminOnly, getJobs);
-router.delete("/jobs/:id", protect, adminOnly, deleteJob);
-
-
-// ==============================
-// Manage courses
-// ==============================
+// =====================================
+// Courses
+// =====================================
 router.get("/courses", protect, adminOnly, getCourses);
+router.delete("/courses/:id", protect, adminOnly, deleteCourse);
 
 module.exports = router;

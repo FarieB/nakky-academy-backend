@@ -6,6 +6,9 @@ const Enrollment = require("../models/Enrollment");
 const fs = require("fs");
 const Payment = require("../models/Payment");
 const payfastService = require("../services/payfastService");
+const {
+  refreshAdminDashboard,
+} = require("../services/socketService");
 
 
 // ==============================
@@ -96,7 +99,10 @@ exports.createCourse = async (req, res) => {
   certificate,
   passMark,
   content: content || [],
-}); 
+});
+
+    // 👇 1. REFRESH DASHBOARD ON COURSE CREATION
+    refreshAdminDashboard();
 
     res.status(201).json({
       message: "Course created successfully.",
@@ -177,6 +183,9 @@ exports.deleteCourse = async (req, res) => {
 
     await course.deleteOne();
 
+    // 👇 2. REFRESH DASHBOARD ON COURSE DELETION
+    refreshAdminDashboard();
+
     res.json({
       message: "Course deleted successfully",
     });
@@ -217,6 +226,9 @@ exports.publishCourse = async (req, res) => {
         course.published = true;
 
         await course.save();
+
+        // 👇 3. REFRESH DASHBOARD ON COURSE PUBLISH
+        refreshAdminDashboard();
 
         res.json({
             message: "Course published successfully",
@@ -259,6 +271,9 @@ exports.unpublishCourse = async (req, res) => {
         course.published = false;
 
         await course.save();
+
+        // 👇 4. REFRESH DASHBOARD ON COURSE UNPUBLISH
+        refreshAdminDashboard();
 
         res.json({
             message: "Course unpublished successfully",

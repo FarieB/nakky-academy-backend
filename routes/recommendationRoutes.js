@@ -2,18 +2,14 @@ const express = require("express");
 const router = express.Router();
 const protect = require("../middleware/authMiddleware");
 
-const {
-  recommendJobs,
+const { 
   recommendCandidates,
   recommendCourses
 } = require("../controllers/recommendationController");
 
 
-// Employee → job recommendations
-router.get("/jobs", protect, recommendJobs);
-
 // Employer → candidate recommendations
-router.get("/candidates/:jobId", protect, recommendCandidates);
+router.get("/candidates", protect, recommendCandidates);
 
 // Student → course recommendations
 router.get("/courses", protect, recommendCourses);

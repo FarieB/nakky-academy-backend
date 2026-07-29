@@ -1,186 +1,170 @@
 const User = require("../models/user");
-const Employee = require("../models/EmployeeProfile");
-const JobPost = require("../models/JobPost");
+const Candidate = require("../models/candidateProfile");
 const Course = require("../models/Course");
-const Hire = require("../models/Hire");
+const Payment = require("../models/Payment");
 
 
 // ==============================
 // Platform Statistics
 // ==============================
 exports.getPlatformStats = async (req, res) => {
+    try {
 
-  try {
+        const users = await User.countDocuments();
+        const candidates = await Candidate.countDocuments();
+        const courses = await Course.countDocuments();
+        const payments = await Payment.countDocuments({
+            status: "paid",
+        });
 
-    const users = await User.countDocuments();
-    const employees = await Employee.countDocuments();
-    const jobs = await JobPost.countDocuments();
-    const courses = await Course.countDocuments();
-    const hires = await Hire.countDocuments();
+        res.json({
+            users,
+            candidates,
+            courses,
+            payments,
+        });
 
-    res.json({
-      users,
-      employees,
-      jobs,
-      courses,
-      hires
-    });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };
-
 
 
 // ==============================
 // Get all users
 // ==============================
 exports.getUsers = async (req, res) => {
+    try {
 
-  try {
+        const users = await User.find().select("-password");
 
-    const users = await User.find().select("-password");
+        res.json(users);
 
-    res.json(users);
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };
 
 
-
 // ==============================
-// Get all employees
+// Get all candidates
 // ==============================
-exports.getEmployees = async (req, res) => {
+exports.getCandidates = async (req, res) => {
+    try {
 
-  try {
+        const candidates = await Candidate.find().populate("user");
 
-    const employees = await Employee.find().populate("user");
+        res.json(candidates);
 
-    res.json(employees);
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };
-
-
-
-// ==============================
-// Get all jobs
-// ==============================
-exports.getJobs = async (req, res) => {
-
-  try {
-
-    const jobs = await JobPost.find().populate("employer");
-
-    res.json(jobs);
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-
-};
-
 
 
 // ==============================
 // Get all courses
 // ==============================
 exports.getCourses = async (req, res) => {
+    try {
 
-  try {
+        const courses = await Course.find();
 
-    const courses = await Course.find();
+        res.json(courses);
 
-    res.json(courses);
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };
 
 
-
 // ==============================
-// Delete user
+// Delete User
 // ==============================
 exports.deleteUser = async (req, res) => {
+    try {
 
-  try {
+        await User.findByIdAndDelete(req.params.id);
 
-    await User.findOneAndDelete({ _id: { $eq: req.params.id } });
+        res.json({
+            message: "User deleted successfully",
+        });
 
-    res.json({
-      message: "User deleted successfully"
-    });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };
 
 
+// ==============================
+// Delete Candidate
+// ==============================
+exports.deleteCandidate = async (req, res) => {
+    try {
+
+        await Candidate.findByIdAndDelete(req.params.id);
+
+        res.json({
+            message: "Candidate deleted successfully",
+        });
+
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 
 // ==============================
-// Delete job
+// Delete Course
 // ==============================
-exports.deleteJob = async (req, res) => {
+exports.deleteCourse = async (req, res) => {
+    try {
 
-  try {
+        await Course.findByIdAndDelete(req.params.id);
 
-    await JobPost.findOneAndDelete({ _id: { $eq: req.params.id } });
+        res.json({
+            message: "Course deleted successfully",
+        });
 
-    res.json({
-      message: "Job deleted successfully"
-    });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };
 
 
 // ==============================
 // Revenue Analytics
 // ==============================
-const Payment = require("../models/Payment");
-
 exports.getRevenue = async (req, res) => {
 
     try {
 
         const totalRevenue = await Payment.aggregate([
-        { $match: { status: "paid" } },
-        {
-            $group: {
-                _id: null,
-                total: { $sum: "$amount" }
-            }
-        }
+            {
+                $match: {
+                    status: "paid",
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    total: {
+                        $sum: "$amount",
+                    },
+                },
+            },
         ]);
 
         const payments = await Payment.find().populate("user");
 
         res.json({
             revenue: totalRevenue[0]?.total || 0,
-            payments
+            payments,
         });
 
     } catch (error) {
-
-        res.status(500).json({ message: error.message });
-
+        res.status(500).json({
+            message: error.message,
+        });
     }
-
 };

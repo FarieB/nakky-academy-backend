@@ -1,9 +1,13 @@
 const express = require("express");
 const router = express.Router();
 
-const { searchWorkersAdvanced } = require("../controllers/searchController");
+const {
+  searchCandidatesAdvanced,
+} = require("../controllers/searchController");
 
-// Public search
-router.get("/workers", searchWorkersAdvanced);
+// ======================================
+// Advanced Candidate Search
+// ======================================
+router.get("/candidates", searchCandidatesAdvanced);
 
 module.exports = router;

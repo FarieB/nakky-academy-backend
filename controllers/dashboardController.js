@@ -1,10 +1,13 @@
-const JobPost = require("../models/JobPost");
-const JobInvitation = require("../models/JobInvitation");
-const Hire = require("../models/Hire");
-const Message = require("../models/Message");
 const User = require("../models/user");
+const Candidate = require("../models/candidateProfile");
 const Enrollment = require("../models/Enrollment");
 const Course = require("../models/Course");
+const Payment = require("../models/Payment");
+
+// 1. ADD THIS UTILITY IMPORT AT THE TOP OF THE FILE
+const {
+    calculateProfileCompletion,
+} = require("../utils/profileCompletion");
 
 // ==============================
 // Unified Dashboard
@@ -14,210 +17,231 @@ exports.getUnifiedDashboard = async (req, res) => {
     const userId = req.user._id;
     const role = req.user.role;
 
-    // ✅ FIX: fetch user INSIDE function
     const user = await User.findById(userId).select("-password");
 
-    // ==========================
-    // Employer View
-    // ==========================
+    // =====================================================
+    // EMPLOYER DASHBOARD
+    // =====================================================
     if (role === "employer") {
-      const jobs = await JobPost.find({ employer: userId }).sort({ createdAt: -1 });
 
-      const invitations = await JobInvitation.find({ employer: userId })
-        .populate("candidate", "name workerType skills yearsExperience verifiedBadge")
-        .populate("job");
-
-      const hires = await Hire.find({ employer: userId })
-        .populate("candidate", "name workerType skills yearsExperience verifiedBadge")
-        .populate("job");
-
-      const messages = await Message.find({
-        $or: [{ sender: userId }, { receiver: userId }],
-      })
-        .populate("sender", "name")
-        .populate("receiver", "name")
-        .sort({ createdAt: -1 });
-
-      // AI Recommendations
-      const recommendations = [];
-      if (jobs.length > 0) {
-        const { getRecommendedCandidates } = require("./jobController");
-
-        for (const job of jobs.slice(0, 5)) {
-          const reqMock = { params: { id: job._id }, user: req.user };
-          const resMock = {
-            json: (data) =>
-              recommendations.push({ job: job._id, topCandidates: data }),
-          };
-
-          await getRecommendedCandidates(reqMock, resMock);
-        }
-      }
-
-      // ✅ Subscription logic (correct way)
       const isActive =
         user.subscriptionExpires &&
         new Date(user.subscriptionExpires) > new Date();
 
-      const stats = {
-        totalJobs: jobs.length,
-        totalInvitations: invitations.length,
-        totalHires: hires.length,
-        totalMessages: messages.length,
-      };
+      const totalCandidates = await Candidate.countDocuments({
+        profileStatus: "active",
+      });
 
       return res.json({
         role: "employer",
+
         subscriptionStatus: isActive ? "active" : "inactive",
+
         subscriptionExpires: user.subscriptionExpires || null,
-        stats,
-        jobs,
-        invitations,
-        hires,
-        messages,
-        recommendations,
+
+        stats: {
+          totalCandidates,
+        },
       });
     }
 
-   // ==========================
-// Employee View
-// ==========================
-if (role === "employee") {
-  const profile = await User.findById(userId).select("-password");
+    // =====================================================
+    // CANDIDATE DASHBOARD
+    // =====================================================
+    if (role === "candidate") {
 
-  // Recommended jobs
-  const jobs = await JobPost.find({
-    province: profile.province,
-  }).sort({ createdAt: -1 });
+      const profile = await Candidate.findOne({
+        user: userId,
+      }).populate("user");
 
-  // Invitations received
-  const invitations = await JobInvitation.find({
-    candidate: userId,
-  })
-    .populate("job")
-    .populate("employer", "name");
+      const enrollments = await Enrollment.find({
+        student: userId,
+      }).populate("course");
 
-  return res.json({
-    role: "employee",
-    profile,
-    jobs,
-    invitations,
-  });
-}
+      const completedCourses = enrollments.filter(
+        (e) => e.completed
+      );
 
-// ==========================
-// Student View
-// ==========================
-if (role === "student") {
+      const certificates = enrollments.filter(
+        (e) => e.certificateIssued
+      );
 
-  // Student profile
-  const profile = await User.findById(userId).select("-password");
+      const enrolledIds = enrollments.map(
+        (e) => e.course._id
+      );
 
-  // Courses the student is enrolled in
-  const enrollments = await Enrollment.find({
-    student: userId,
-  }).populate("course");
+      const recommendedCourses = await Course.find({
+        _id: {
+          $nin: enrolledIds,
+        },
+      }).limit(5);
 
-  // Courses not yet enrolled in
-  const enrolledIds = enrollments.map((e) => e.course._id);
+      // 2. CALCULATE COMPLETION SCORE HERE
+      const completion = calculateProfileCompletion(profile);
 
-  const recommendedCourses = await Course.find({
-    _id: { $nin: enrolledIds },
-  }).limit(5);
+      return res.json({
 
-  // Certificates
-  const certificates = enrollments.filter(
-    (e) => e.certificateIssued
-  );
+        role: "candidate",
 
-  // Completed courses
-  const completedCourses = enrollments.filter(
-    (e) => e.completed
-  );
+        profile,
 
-  // Temporary announcements
-  const announcements = [
-    {
-      title: "Welcome to Nakky Academy",
-      message:
-        "Continue learning and complete your courses to earn certificates.",
-    },
-    {
-      title: "New Courses Available",
-      message:
-        "Browse our latest professional caregiving courses.",
-    },
-  ];
+        stats: {
+          enrolledCourses: enrollments.length,
+          completedCourses: completedCourses.length,
+          certificates: certificates.length,
+          verificationStatus:
+            profile?.verificationStatus || "unverified",
+          verifiedBadge:
+            profile?.verifiedBadge || false,
+        },
 
-  return res.json({
-    role: "student",
+        enrollments,
 
-    profile,
+        completedCourses,
 
-    enrollments,
+        certificates,
 
-    recommendedCourses,
+        recommendedCourses,
 
-    certificates,
+        // 3. EXPOSE THE COMPLETION OBJECT TO RESPOND TO FRONTEND
+        profileCompletion: completion,
 
-    completedCourses,
+      });
+    }
 
-    announcements,
-  });
-}
+    // =====================================================
+    // STUDENT DASHBOARD
+    // =====================================================
+    if (role === "student") {
 
-// ==========================
-// Admin View
-// ==========================
-if (role === "admin") {
+      const profile = await User.findById(userId)
+        .select("-password");
 
-    const profile = await User.findById(userId).select("-password");
+      const enrollments = await Enrollment.find({
+        student: userId,
+      }).populate("course");
 
-    const totalUsers = await User.countDocuments();
+      const enrolledIds = enrollments.map(
+        (e) => e.course._id
+      );
 
-    const totalStudents = await User.countDocuments({
+      const recommendedCourses = await Course.find({
+        _id: {
+          $nin: enrolledIds,
+        },
+      }).limit(5);
+
+      const certificates = enrollments.filter(
+        (e) => e.certificateIssued
+      );
+
+      const completedCourses = enrollments.filter(
+        (e) => e.completed
+      );
+
+      const announcements = [
+        {
+          title: "Welcome to Nakky Academy",
+          message:
+            "Continue learning and complete your courses to earn certificates.",
+        },
+        {
+          title: "New Courses Available",
+          message:
+            "Browse our latest professional caregiving courses.",
+        },
+      ];
+
+      return res.json({
+
         role: "student",
-    });
 
-    const totalEmployees = await User.countDocuments({
-        role: "employee",
-    });
+        profile,
 
-    const totalEmployers = await User.countDocuments({
+        enrollments,
+
+        recommendedCourses,
+
+        certificates,
+
+        completedCourses,
+
+        announcements,
+
+      });
+    }
+
+    // =====================================================
+    // ADMIN DASHBOARD
+    // =====================================================
+    if (role === "admin") {
+
+      const profile = await User.findById(userId)
+        .select("-password");
+
+      const totalUsers = await User.countDocuments();
+
+      const totalStudents = await User.countDocuments({
+        role: "student",
+      });
+
+      const totalEmployers = await User.countDocuments({
         role: "employer",
-    });
+      });
 
-    const totalCourses = await Course.countDocuments();
+      const totalCandidates =
+        await Candidate.countDocuments();
 
-    const totalJobs = await JobPost.countDocuments();
+      const totalCourses =
+        await Course.countDocuments();
 
-    const pendingVerifications =
-        await User.find({
-            verificationStatus: "pending",
+      const totalEnrollments =
+        await Enrollment.countDocuments();
+
+      const revenue = await Payment.aggregate([
+        {
+          $match: {
+            status: "paid",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            total: {
+              $sum: "$amount",
+            },
+          },
+        },
+      ]);
+
+      const pendingVerifications =
+        await Candidate.find({
+          verificationStatus: "pending",
         })
-        .select("name email")
-        .limit(5);
+          .populate("user", "name email")
+          .limit(5);
 
-    const recentUsers =
-        await User.find()
-        .sort({ createdAt: -1 })
+      const recentUsers = await User.find()
+        .sort({
+          createdAt: -1,
+        })
         .limit(5)
         .select("name role createdAt");
 
-    return res.json({
+      return res.json({
 
         role: "admin",
 
         profile,
 
         stats: {
-            totalUsers,
-            totalStudents,
-            totalEmployees,
-            totalEmployers,
-            totalCourses,
-            totalJobs,
-            revenue: 0
+          totalUsers,
+          totalStudents,
+          totalEmployers,
+          totalCandidates,
+          totalCourses,
+          totalEnrollments,
+          revenue: revenue[0]?.total || 0,
         },
 
         pendingVerifications,
@@ -225,35 +249,37 @@ if (role === "admin") {
         recentUsers,
 
         recentActivity: [
+          {
+            message: "New candidate registered",
+          },
+          {
+            message: "Employer subscription activated",
+          },
+          {
+            message: "New course created",
+          },
+          {
+            message: "Candidate verification approved",
+          },
+          {
+            message: "Student enrolled in a course",
+          },
+        ],
 
-            {
-                message:
-                    "New caregiver registered"
-            },
+      });
+    }
 
-            {
-                message:
-                    "Employer purchased subscription"
-            },
-
-            {
-                message:
-                    "New course published"
-            },
-
-            {
-                message:
-                    "Verification approved"
-            }
-
-        ]
-
+    return res.status(403).json({
+      message: "Unauthorized role",
     });
 
-}
-    res.status(403).json({ message: "Unauthorized role" });
   } catch (err) {
+
     console.error(err);
-    res.status(500).json({ message: err.message });
+
+    return res.status(500).json({
+      message: err.message,
+    });
+
   }
 };

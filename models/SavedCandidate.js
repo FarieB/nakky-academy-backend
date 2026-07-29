@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const ReviewSchema = new mongoose.Schema(
+const SavedCandidateSchema = new mongoose.Schema(
   {
     employer: {
       type: mongoose.Schema.Types.ObjectId,
@@ -8,24 +8,10 @@ const ReviewSchema = new mongoose.Schema(
       required: true,
     },
 
-    // Candidate being reviewed
     candidate: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "CandidateProfile",
       required: true,
-    },
-
-    rating: {
-      type: Number,
-      required: true,
-      min: 1,
-      max: 5,
-    },
-
-    comment: {
-      type: String,
-      maxlength: 500,
-      default: "",
     },
   },
   {
@@ -33,6 +19,20 @@ const ReviewSchema = new mongoose.Schema(
   }
 );
 
+// Prevent duplicate saves
+SavedCandidateSchema.index(
+  {
+    employer: 1,
+    candidate: 1,
+  },
+  {
+    unique: true,
+  }
+);
+
 module.exports =
-  mongoose.models.Review ||
-  mongoose.model("Review", ReviewSchema);
+  mongoose.models.SavedCandidate ||
+  mongoose.model(
+    "SavedCandidate",
+    SavedCandidateSchema
+  );

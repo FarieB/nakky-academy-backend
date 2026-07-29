@@ -5,14 +5,17 @@ const protect = require("../middleware/authMiddleware");
 
 const {
   leaveReview,
-  getEmployeeReviews
+  getCandidateReviews,
 } = require("../controllers/reviewController");
 
-
-// Employer writes review
+// ======================================
+// Employer leaves a review for a candidate
+// ======================================
 router.post("/", protect, leaveReview);
 
-// View employee reviews
-router.get("/:employeeId", protect, getEmployeeReviews);
+// ======================================
+// View reviews for a candidate
+// ======================================
+router.get("/candidate/:candidateId", protect, getCandidateReviews);
 
 module.exports = router;

@@ -8,7 +8,7 @@ const UserSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ["admin", "student", "employer", "employee"], // "employee" will be displayed as "Candidate" in the app
+      enum: ["admin", "student", "employer", "candidate"],
       required: true,
     },
 
@@ -66,9 +66,7 @@ const UserSchema = new mongoose.Schema(
       default: "inactive",
     },
 
-    subscriptionExpiry: {
-      type: Date,
-    },
+    subscriptionExpiry: Date,
 
     currentSubscription: {
       type: mongoose.Schema.Types.ObjectId,
@@ -105,14 +103,50 @@ const UserSchema = new mongoose.Schema(
       default: false,
     },
 
+    verificationSubmittedAt: {
+      type: Date,
+    },
+
+    uploadedDocuments: {
+      idDocument: {
+        type: String,
+        default: "",
+      },
+
+      policeClearance: {
+        type: String,
+        default: "",
+      },
+
+      references: {
+        type: String,
+        default: "",
+      },
+
+      qualifications: {
+        type: String,
+        default: "",
+      },
+    },
+
     // ==========================================
     // ACTIVITY
     // ==========================================
 
-    lastSeen: {
-      type: Date,
-      default: Date.now,
+      // ==============================
+    // Online Presence
+    // ==============================
+
+    isOnline: {
+        type: Boolean,
+        default: false,
     },
+
+    lastSeen: {
+        type: Date,
+        default: null,
+    },
+ 
 
     lastLogin: Date,
   },

@@ -1,143 +1,96 @@
-const JobPost = require("../models/JobPost");
-const User = require("../models/user");
+const Candidate = require("../models/candidateProfile");
 const Course = require("../models/Course");
-
-// =================================
-// Recommend Jobs to Employees
-// =================================
-exports.recommendJobs = async (req, res) => {
-  try {
-    if (req.user.role !== "employee") {
-      return res.status(403).json({
-        message: "Only employees can access job recommendations",
-      });
-    }
-
-    const user = await User.findById(req.user._id);
-
-    const jobs = await JobPost.find({
-      jobType: user.workerType,
-      province: user.province,
-    });
-
-    const scoredJobs = jobs.map((job) => {
-      let score = 0;
-
-      if (job.city === user.city) score += 20;
-      if (job.province === user.province) score += 10;
-
-      if (user.yearsExperience >= job.requiredExperience) {
-        score += 25;
-      }
-
-      if (user.skills && job.requiredSkills) {
-        const matched = user.skills.filter((skill) =>
-          job.requiredSkills.includes(skill)
-        );
-
-        score += matched.length * 10;
-      }
-
-      return {
-        job,
-        score,
-      };
-    });
-
-    scoredJobs.sort((a, b) => b.score - a.score);
-
-    res.json(scoredJobs);
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-// =================================
-// Recommend Candidates to Employers
-// =================================
-exports.recommendCandidates = async (req, res) => {
-  try {
-    if (req.user.role !== "employer") {
-      return res.status(403).json({
-        message: "Only employers can view candidate recommendations",
-      });
-    }
-
-    const job = await JobPost.findById(req.params.jobId);
-
-    if (!job) {
-      return res.status(404).json({
-        message: "Job not found",
-      });
-    }
-
-    const candidates = await User.find({
-      role: "employee",
-      workerType: job.jobType,
-      province: job.province,
-    });
-
-    const ranked = candidates.map((candidate) => {
-      let score = 0;
-
-      if (candidate.skills && job.requiredSkills) {
-        const matched = candidate.skills.filter((skill) =>
-          job.requiredSkills.includes(skill)
-        );
-
-        score += matched.length * 10;
-      }
-
-      score += candidate.yearsExperience || 0;
-      score += (candidate.averageRating || 0) * 5;
-
-      if (candidate.verifiedBadge) score += 10;
-
-      return {
-        candidate,
-        score,
-      };
-    });
-
-    ranked.sort((a, b) => b.score - a.score);
-
-    res.json(ranked);
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
+const Enrollment = require("../models/Enrollment");
 
 // =================================
 // Recommend Courses
 // =================================
 exports.recommendCourses = async (req, res) => {
-  try {
-    const courses = await Course.find();
+    try {
 
-    const ranked = courses.map((course) => {
-      let score = 0;
+        const enrollments = await Enrollment.find({
+            student: req.user._id,
+        });
 
-      const title = course.title.toLowerCase();
+        const enrolledCourseIds = enrollments.map(
+            (enrollment) => enrollment.course
+        );
 
-      if (title.includes("care")) score += 20;
-      if (title.includes("child")) score += 15;
+        const courses = await Course.find({
+            _id: {
+                $nin: enrolledCourseIds,
+            },
+        });
 
-      return {
-        course,
-        score,
-      };
-    });
+        const ranked = courses.map((course) => {
 
-    ranked.sort((a, b) => b.score - a.score);
+            let score = 0;
 
-    res.json(ranked.slice(0, 5));
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
+            const title = course.title.toLowerCase();
+
+            if (title.includes("care")) score += 20;
+            if (title.includes("child")) score += 15;
+            if (title.includes("elder")) score += 15;
+            if (title.includes("first aid")) score += 10;
+
+            return {
+                course,
+                score,
+            };
+
+        });
+
+        ranked.sort((a, b) => b.score - a.score);
+
+        return res.json(ranked.slice(0, 5));
+
+    } catch (error) {
+
+        return res.status(500).json({
+            message: error.message,
+        });
+
+    }
+};
+
+
+// =================================
+// Recommend Candidates
+// =================================
+exports.recommendCandidates = async (req, res) => {
+
+    try {
+
+        if (req.user.role !== "employer") {
+            return res.status(403).json({
+                message: "Only employers can access candidate recommendations.",
+            });
+        }
+
+        const { workType, province } = req.query;
+
+        const filter = {};
+
+        if (province) {
+            filter.province = province;
+        }
+
+        // workTypes is now an array
+        if (workType) {
+            filter.workTypes = workType;
+        }
+
+        const candidates = await Candidate.find(filter)
+            .populate("user", "name email profilePhoto verifiedBadge");
+
+        return res.json(candidates);
+
+    } catch (error) {
+
+        return res.status(500).json({
+            message: error.message,
+        });
+
+    }
+
 };

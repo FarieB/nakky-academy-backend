@@ -4,7 +4,6 @@ const router = express.Router();
 const protect = require("../middleware/authMiddleware");
 
 const {
-  // Candidate Base Handlers
   createCandidateProfile,
   getCandidateProfile,
   updateCandidateProfile,
@@ -13,26 +12,24 @@ const {
   getCandidateById,
   uploadDocuments,
 
-  // Employer Base Handlers
   createEmployerProfile,
   getEmployerProfile,
   updateEmployerProfile,
   activateEmployerProfile,
   deactivateEmployerProfile,
 
-  // Search & Interactivity
   searchCandidates,
   getCandidateContact,
   saveCandidate,
   getSavedCandidates,
   removeSavedCandidate,
 
-  // Admin Management Handlers
   getAllCandidates,
   getAllEmployers,
   verifyCandidate,
   rejectCandidate,
-  getRecruitmentStats
+  getRecruitmentStats,
+  getUserPresence
 } = require("../controllers/profileController");
 
 // ======================================
@@ -84,7 +81,7 @@ router.get("/admin/stats", protect, getRecruitmentStats);
 router.get(
     "/presence/:userId",
     protect,
-    profileController.getUserPresence
+    getUserPresence
 );
 
 module.exports = router;

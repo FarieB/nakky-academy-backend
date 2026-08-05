@@ -5,6 +5,9 @@ const SavedCandidate = require("../models/SavedCandidate");
 const {
   createNotification,
 } = require("../services/notificationService");
+ const {
+          refreshAdminDashboard,
+        } = require("../services/socketService");
 
 
 //
@@ -149,10 +152,7 @@ exports.uploadDocuments = async (req, res) => {
 
         await user.save();
 
-        const {
-          refreshAdminDashboard,
-        } = require("../services/socketService");
-
+      
         refreshAdminDashboard();
 
         return res.json({

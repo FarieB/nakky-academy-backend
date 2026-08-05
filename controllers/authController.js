@@ -10,7 +10,6 @@ const {
 // ==========================================
 const register = async (req, res) => {
     try {
-
         const {
             name,
             email,
@@ -19,21 +18,26 @@ const register = async (req, res) => {
             phone,
         } = req.body;
 
+        // ==========================================
+        // Block public admin account creation
+        // ==========================================
+        if (role === "admin") {
+            return res.status(403).json({
+                message: "Admin accounts cannot be created publicly.",
+            });
+        }
+
         const existingUser = await User.findOne({
             email,
         });
-
         if (existingUser) {
             return res.status(400).json({
                 message: "Email already registered",
             });
         }
-
         const hashedPassword = await bcrypt.hash(password, 10);
-
         console.log("REGISTER BODY:", req.body);
         console.log("REGISTER ROLE:", role);
-
         const user = await User.create({
             name,
             email,
@@ -41,58 +45,44 @@ const register = async (req, res) => {
             role,
             phone,
         });
-
         refreshAdminDashboard();
-
         const { password: removedPassword, ...userWithoutPassword } = user.toObject();
-
         return res.status(201).json({
             message: "User registered successfully",
             user: userWithoutPassword,
         });
-
     } catch (error) {
-
         return res.status(500).json({
             message: error.message,
         });
-
     }
 };
-
 
 // ==========================================
 // Login
 // ==========================================
 const login = async (req, res) => {
     try {
-
         const { email, password } = req.body;
-
         const user = await User.findOne({
             email,
         });
-
         if (!user) {
             return res.status(400).json({
                 message: "User not found",
             });
         }
-
         const validPassword = await bcrypt.compare(
             password,
             user.password
         );
-
         if (!validPassword) {
             return res.status(400).json({
                 message: "Invalid credentials",
             });
         }
-
         user.lastLogin = new Date();
         await user.save();
-
         const token = jwt.sign(
             {
                 id: user._id,
@@ -103,20 +93,15 @@ const login = async (req, res) => {
                 expiresIn: "7d",
             }
         );
-
         const { password: removedPassword, ...userWithoutPassword } = user.toObject();
-
         return res.json({
             token,
             user: userWithoutPassword,
         });
-
     } catch (error) {
-
         return res.status(500).json({
             message: error.message,
         });
-
     }
 };
 
@@ -124,4 +109,3 @@ module.exports = {
     register,
     login,
 };
-

@@ -107,27 +107,27 @@ const UserSchema = new mongoose.Schema(
       type: Date,
     },
 
-    uploadedDocuments: {
-      idDocument: {
+   uploadedDocuments: {
+    idDocument: {
         type: String,
         default: "",
-      },
-
-      policeClearance: {
-        type: String,
-        default: "",
-      },
-
-      references: {
-        type: String,
-        default: "",
-      },
-
-      qualifications: {
-        type: String,
-        default: "",
-      },
     },
+
+    policeClearance: {
+        type: String,
+        default: "",
+    },
+
+    references: {
+        type: [String],
+        default: [],
+    },
+
+    qualifications: {
+        type: [String],
+        default: [],
+    },
+}, 
 
     // ==========================================
     // ACTIVITY

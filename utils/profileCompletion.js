@@ -1,34 +1,54 @@
 exports.calculateProfileCompletion = (profile) => {
+
+    if (!profile) {
+        return {
+            percentage: 0,
+            missing: {
+                profilePhoto: true,
+                bio: true,
+                workerType: true,
+                skills: true,
+                yearsExperience: true,
+                city: true,
+                province: true,
+                idDocument: true,
+                references: true,
+                qualifications: true,
+            },
+        };
+    }
+
     const checks = [
         profile.profilePhoto,
         profile.bio,
-        profile.workerType,
+        profile.workerTypes?.length > 0,
         profile.skills?.length > 0,
-        profile.yearsExperience,
+        profile.yearsExperience > 0,
         profile.city,
         profile.province,
-        profile.uploadedDocuments?.idDocument,
-        profile.uploadedDocuments?.references,
-        profile.uploadedDocuments?.qualifications,
+        profile.documents?.idDocument,
+        profile.documents?.references,
+        profile.documents?.qualifications,
     ];
 
     const completed = checks.filter(Boolean).length;
 
     return {
-        percentage: Math.round((completed / checks.length) * 100),
+        percentage: Math.round(
+            (completed / checks.length) * 100
+        ),
 
         missing: {
             profilePhoto: !profile.profilePhoto,
             bio: !profile.bio,
-            workerType: !profile.workerType,
-            skills: !profile.skills?.length,
-            yearsExperience: !profile.yearsExperience,
+            workerType: !(profile.workerTypes?.length),
+            skills: !(profile.skills?.length),
+            yearsExperience: !(profile.yearsExperience > 0),
             city: !profile.city,
             province: !profile.province,
-            idDocument: !profile.uploadedDocuments?.idDocument,
-            references: !profile.uploadedDocuments?.references,
-            qualifications:
-                !profile.uploadedDocuments?.qualifications,
+            idDocument: !profile.documents?.idDocument,
+            references: !profile.documents?.references,
+            qualifications: !profile.documents?.qualifications,
         },
     };
 };

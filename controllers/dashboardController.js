@@ -1,5 +1,5 @@
 const User = require("../models/user");
-const Candidate = require("../models/candidateProfile");
+const CandidateProfile = require("../models/CandidateProfile");
 const Enrollment = require("../models/Enrollment");
 const Course = require("../models/Course");
 const Payment = require("../models/Payment");
@@ -19,16 +19,16 @@ exports.getUnifiedDashboard = async (req, res) => {
 
     const user = await User.findById(userId).select("-password");
 
-    // =====================================================
+        // =====================================================
     // EMPLOYER DASHBOARD
     // =====================================================
     if (role === "employer") {
 
       const isActive =
-        user.subscriptionExpires &&
-        new Date(user.subscriptionExpires) > new Date();
+        user.subscriptionExpiry &&
+        new Date(user.subscriptionExpiry) > new Date();
 
-      const totalCandidates = await Candidate.countDocuments({
+      const totalCandidates = await CandidateProfile.countDocuments({
         profileStatus: "active",
       });
 
@@ -37,7 +37,7 @@ exports.getUnifiedDashboard = async (req, res) => {
 
         subscriptionStatus: isActive ? "active" : "inactive",
 
-        subscriptionExpires: user.subscriptionExpires || null,
+        subscriptionExpiry: user.subscriptionExpiry || null,
 
         stats: {
           totalCandidates,
@@ -45,12 +45,13 @@ exports.getUnifiedDashboard = async (req, res) => {
       });
     }
 
+
     // =====================================================
     // CANDIDATE DASHBOARD
     // =====================================================
     if (role === "candidate") {
 
-      const profile = await Candidate.findOne({
+      const profile = await CandidateProfile.findOne({
         user: userId,
       }).populate("user");
 
@@ -190,7 +191,7 @@ exports.getUnifiedDashboard = async (req, res) => {
       });
 
       const totalCandidates =
-        await Candidate.countDocuments();
+        await CandidateProfile.countDocuments();
 
       const totalCourses =
         await Course.countDocuments();
@@ -215,7 +216,7 @@ exports.getUnifiedDashboard = async (req, res) => {
       ]);
 
       const pendingVerifications =
-        await Candidate.find({
+        await CandidateProfile.find({
           verificationStatus: "pending",
         })
           .populate("user", "name email")

@@ -55,6 +55,36 @@ exports.createSubscription = async (req, res) => {
 };
 
 // =======================================
+// Create Candidate Verification Payment
+// =======================================
+
+exports.createVerificationPayment = async (req, res) => {
+
+    try {
+
+        const payment = await paymentService.createVerificationPayment(
+            req.user
+        );
+
+        return res.status(200).json(payment);
+
+    }
+
+    catch (err) {
+
+        console.error(err);
+
+        return res.status(500).json({
+
+            message: err.message
+
+        });
+
+    }
+
+};
+
+// =======================================
 // PayFast ITN
 // =======================================
 

@@ -3,6 +3,8 @@ const CandidateProfile = require("../models/CandidateProfile");
 const Enrollment = require("../models/Enrollment");
 const Course = require("../models/Course");
 const Payment = require("../models/Payment");
+const EmployerProfile = require("../models/EmployerProfile");
+const SavedCandidate = require("../models/SavedCandidate");
 
 // 1. ADD THIS UTILITY IMPORT AT THE TOP OF THE FILE
 const {
@@ -22,28 +24,127 @@ exports.getUnifiedDashboard = async (req, res) => {
         // =====================================================
     // EMPLOYER DASHBOARD
     // =====================================================
-    if (role === "employer") {
+    // =====================================================
+// EMPLOYER DASHBOARD
+// =====================================================
+if (role === "employer") {
 
-      const isActive =
-        user.subscriptionExpiry &&
-        new Date(user.subscriptionExpiry) > new Date();
+  const isActive =
+    user.subscriptionExpiry &&
+    new Date(user.subscriptionExpiry) > new Date();
 
-      const totalCandidates = await CandidateProfile.countDocuments({
-        profileStatus: "active",
-      });
+  // -----------------------------------------
+  // Employer profile
+  // -----------------------------------------
+  const employerProfile = await EmployerProfile.findOne({
+    user: userId,
+  });
 
-      return res.json({
-        role: "employer",
+  // -----------------------------------------
+  // Total active candidates
+  // -----------------------------------------
+  const totalCandidates =
+    await CandidateProfile.countDocuments({
+      profileActive: true,
+      profileCompleted: true,
+    });
 
-        subscriptionStatus: isActive ? "active" : "inactive",
+  // -----------------------------------------
+  // Saved candidates
+  // -----------------------------------------
+  const savedCandidates =
+    await SavedCandidate.countDocuments({
+      employer: userId,
+    });
 
-        subscriptionExpiry: user.subscriptionExpiry || null,
+  // -----------------------------------------
+  // Saved candidate records
+  // -----------------------------------------
+  const savedCandidateRecords =
+    await SavedCandidate.find({
+      employer: userId,
+    })
+      .populate({
+        path: "candidate",
+        select:
+          "firstName workerTypes city province yearsExperience profilePhoto profileVerified",
+      })
+      .sort({
+        createdAt: -1,
+      })
+      .limit(10);
 
-        stats: {
-          totalCandidates,
-        },
-      });
+  // -----------------------------------------
+  // Recommended candidates
+  // -----------------------------------------
+  let recommendedCandidates = [];
+
+  if (employerProfile) {
+
+    const recommendationFilter = {
+      profileActive: true,
+      profileCompleted: true,
+    };
+
+    if (
+      employerProfile.lookingFor &&
+      employerProfile.lookingFor.length > 0
+    ) {
+      recommendationFilter.workerTypes = {
+        $in: employerProfile.lookingFor,
+      };
     }
+
+    if (employerProfile.province) {
+      recommendationFilter.province =
+        employerProfile.province;
+    }
+
+    recommendedCandidates =
+      await CandidateProfile.find(
+        recommendationFilter
+      )
+        .select(
+          "firstName workerTypes city province yearsExperience profilePhoto profileVerified"
+        )
+        .sort({
+          profileVerified: -1,
+          yearsExperience: -1,
+          createdAt: -1,
+        })
+        .limit(5);
+  }
+
+  return res.json({
+
+    role: "employer",
+
+    subscriptionStatus:
+      isActive ? "active" : "inactive",
+
+    subscriptionExpiry:
+      user.subscriptionExpiry || null,
+
+    profile: employerProfile,
+
+    stats: {
+
+      totalCandidates,
+
+      savedCandidates,
+
+      recommendedCandidates:
+        recommendedCandidates.length,
+
+    },
+
+    savedCandidates:
+      savedCandidateRecords,
+
+    recommendedCandidates,
+
+  });
+}
 
 
     // =====================================================

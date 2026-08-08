@@ -21,7 +21,7 @@ exports.generateSignature = (data) => {
                 data[key] !== ""
             ) {
 
-                pfOutput += `${key}=${encodeURIComponent(data[key]).replace(/%20/g, "+")} &`;
+                pfOutput += `${key}=${encodeURIComponent(data[key]).replace(/%20/g, "+")}&`;
 
             }
 
@@ -35,10 +35,10 @@ exports.generateSignature = (data) => {
 
     }
 
-    return crypto
-        .createHash("sha256")
-        .update(pfOutput)
-        .digest("hex");
+        return crypto
+            .createHash("md5")
+            .update(pfOutput)
+            .digest("hex"); 
 
 };
 

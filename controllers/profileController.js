@@ -91,10 +91,13 @@ exports.createCandidateProfile = async (req, res) => {
 
     res.status(201).json(profile);
   } catch (err) {
+    console.error("CREATE PROFILE ERROR:", err);
+
     res.status(500).json({
-      error: err.message,
+      message: err.message,
+      stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
     });
-  }
+  } 
 };
 
 // ======================================
@@ -459,7 +462,7 @@ exports.saveCandidate = async (req, res) => {
       });
     }
 
-    const { candidateId } = req.body;
+    const { candidateId } = req.params; 
 
     const candidate = await CandidateProfile.findById(candidateId);
 
@@ -570,7 +573,7 @@ exports.removeSavedCandidate =
 
       const removed = await SavedCandidate.findOneAndDelete({
         employer: req.user._id,
-        candidate: req.params.id,
+        candidate: req.params.candidateId,
       });
 
       if (!removed) {

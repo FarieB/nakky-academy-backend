@@ -18,6 +18,18 @@ router.post(
 
 );
 
+// Candidate Verification Payment
+
+router.post(
+
+    "/verification",
+
+    auth,
+
+    paymentController.createVerificationPayment
+
+);
+
 // PayFast ITN
 
 router.post(

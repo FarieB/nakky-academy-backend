@@ -1,169 +1,170 @@
-const Candidate = require("../models/candidateProfile");
+const CandidateProfile = require("../models/CandidateProfile");
 
-// =================================
-// Advanced Candidate Search
-// =================================
-exports.searchCandidatesAdvanced = async (req, res) => {
-  try {
-    const {
-      workType,
-      province,
-      city,
-      minExperience,
-      maxExperience,
-      skills,
-      minRating,
-      availabilityStatus,
-      workPreference,
-      verifiedBadge,
-      minSalary,
-      maxSalary,
-      page = 1,
-      limit = 10,
-      sortBy = "rating",
-    } = req.query;
+exports.searchCandidates = async (req, res) => {
+    try {
 
-    const filter = {
-      profileActive: true,
-    };
+        // Support both GET query parameters and POST body
+        const {
+            workerType,
+            workerTypes,
+            province,
+            gender,
+            language,
+            languages,
+            employment,
+            workPreference,
+            workPreferences,
+            availabilityStatus,
+            minimumExperience,
+            verified
+        } = {
+            ...req.body,
+            ...req.query
+        };
 
-    // =================================
-    // Work Types (Array)
-    // =================================
-    if (workType) {
-      filter.workTypes = workType;
+        let query = {
+            profileActive: true,
+            profileCompleted: true
+        };
+
+        // =====================================
+        // PROFESSION
+        // =====================================
+
+        const selectedWorkerTypes =
+            workerTypes ||
+            (workerType ? [workerType] : []);
+
+        if (selectedWorkerTypes.length > 0) {
+            query.workerTypes = {
+                $in: selectedWorkerTypes
+            };
+        }
+
+        // =====================================
+        // PROVINCE
+        // =====================================
+
+        if (province) {
+            query.province = province;
+        }
+
+        // =====================================
+        // GENDER
+        // =====================================
+
+        if (gender) {
+            query.gender = gender;
+        }
+
+        // =====================================
+        // LANGUAGES
+        // =====================================
+
+        const selectedLanguages =
+            languages ||
+            (language ? [language] : []);
+
+        if (selectedLanguages.length > 0) {
+            query.languages = {
+                $in: selectedLanguages
+            };
+        }
+
+        // =====================================
+        // WORK PREFERENCE
+        // =====================================
+
+        const selectedWorkPreferences =
+            workPreferences ||
+            (workPreference ? [workPreference] : []);
+
+        if (selectedWorkPreferences.length > 0) {
+            query.workPreferences = {
+                $in: selectedWorkPreferences
+            };
+        }
+
+        // =====================================
+        // EMPLOYMENT
+        // =====================================
+
+        if (employment) {
+            query.workPreferences = {
+                $in: [employment]
+            };
+        }
+
+        // =====================================
+        // AVAILABILITY
+        // =====================================
+
+        if (availabilityStatus) {
+            query.availabilityStatus = availabilityStatus;
+        }
+
+        // =====================================
+        // EXPERIENCE
+        // =====================================
+
+        if (
+            minimumExperience !== undefined &&
+            minimumExperience !== ""
+        ) {
+            query.yearsExperience = {
+                $gte: Number(minimumExperience)
+            };
+        }
+
+        // =====================================
+        // VERIFIED
+        // =====================================
+
+        if (
+            verified === true ||
+            verified === "true"
+        ) {
+            query.profileVerified = true;
+        }
+
+        // =====================================
+        // SEARCH
+        // =====================================
+
+        const candidates = await CandidateProfile.find(query)
+            .select(
+                "firstName workerTypes province city suburb yearsExperience languages expectedSalary availabilityStatus profileVerified profilePhoto averageRating totalReviews"
+            )
+            .sort({
+                profileVerified: -1,
+                averageRating: -1,
+                createdAt: -1
+            });
+
+        // =====================================
+        // SECURITY
+        // =====================================
+        // Do NOT return:
+        // surname
+        // email
+        // phone
+        // ID documents
+        // CV
+        // private references
+        // other sensitive information
+
+        res.json(candidates);
+
+    } catch (err) {
+
+        console.log(
+            "SEARCH CANDIDATES ERROR:",
+            err
+        );
+
+        res.status(500).json({
+            message: err.message
+        });
+
     }
-
-    // =================================
-    // Province
-    // =================================
-    if (province) {
-      filter.province = {
-        $regex: province,
-        $options: "i",
-      };
-    }
-
-    // =================================
-    // City
-    // =================================
-    if (city) {
-      filter.city = {
-        $regex: city,
-        $options: "i",
-      };
-    }
-
-    // =================================
-    // Experience
-    // =================================
-    if (minExperience || maxExperience) {
-      filter.yearsExperience = {};
-
-      if (minExperience) {
-        filter.yearsExperience.$gte = Number(minExperience);
-      }
-
-      if (maxExperience) {
-        filter.yearsExperience.$lte = Number(maxExperience);
-      }
-    }
-
-    // =================================
-    // Skills
-    // =================================
-    if (skills) {
-      const skillArray = skills
-        .split(",")
-        .map((skill) => skill.trim());
-
-      filter.skills = {
-        $in: skillArray,
-      };
-    }
-
-    // =================================
-    // Rating
-    // =================================
-    if (minRating) {
-      filter.averageRating = {
-        $gte: Number(minRating),
-      };
-    }
-
-    // =================================
-    // Availability
-    // =================================
-    if (availabilityStatus) {
-      filter.availabilityStatus = availabilityStatus;
-    }
-
-    if (workPreference) {
-      filter.workPreferences = workPreference;
-    }
-
-    // =================================
-    // Salary
-    // =================================
-    if (minSalary || maxSalary) {
-      filter.expectedSalary = {};
-
-      if (minSalary) {
-        filter.expectedSalary.$gte = Number(minSalary);
-      }
-
-      if (maxSalary) {
-        filter.expectedSalary.$lte = Number(maxSalary);
-      }
-    }
-
-    // =================================
-    // Sorting
-    // =================================
-    let sort = {};
-
-    switch (sortBy) {
-      case "experience":
-        sort = { yearsExperience: -1 };
-        break;
-
-      case "salary":
-        sort = { expectedSalary: 1 };
-        break;
-
-      default:
-        sort = { averageRating: -1 };
-    }
-
-    const skip = (Number(page) - 1) * Number(limit);
-
-    let candidates = await Candidate.find(filter)
-      .populate(
-        "user",
-        "name profilePhoto verifiedBadge"
-      )
-      .sort(sort)
-      .skip(skip)
-      .limit(Number(limit));
-
-    // Filter verified candidates if requested
-    if (verifiedBadge === "true") {
-      candidates = candidates.filter(
-        (candidate) => candidate.user?.verifiedBadge
-      );
-    }
-
-    const total = await Candidate.countDocuments(filter);
-
-    return res.json({
-      page: Number(page),
-      totalPages: Math.ceil(total / Number(limit)),
-      totalResults: total,
-      results: candidates,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: error.message,
-    });
-  }
 };

@@ -144,9 +144,7 @@ const CandidateProfileSchema = new mongoose.Schema(
     // ==========================================
 
     references: [{
-        name: String,
-        relationship: String,
-        phone: String
+         file: String
     }],
 
     // ==========================================

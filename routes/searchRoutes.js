@@ -1,13 +1,16 @@
 const express = require("express");
 const router = express.Router();
 
+const protect = require("../middleware/authMiddleware");
+
 const {
-  searchCandidatesAdvanced,
+    searchCandidates
 } = require("../controllers/searchController");
 
-// ======================================
-// Advanced Candidate Search
-// ======================================
-router.get("/candidates", searchCandidatesAdvanced);
+router.post(
+    "/candidates",
+    protect,
+    searchCandidates
+);
 
 module.exports = router;

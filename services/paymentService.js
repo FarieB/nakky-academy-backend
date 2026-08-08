@@ -1,3 +1,4 @@
+const CandidateProfile = require("../models/CandidateProfile");
 const Payment = require("../models/Payment");
 const Subscription = require("../models/Subscription");
 const SubscriptionPlan = require("../models/SubscriptionPlan");
@@ -218,6 +219,145 @@ const createSubscriptionPayment = async (user, planId) => {
 
 };
 
+// ======================================================
+// CREATE CANDIDATE VERIFICATION PAYMENT
+// ======================================================
+
+const createVerificationPayment = async (user) => {
+
+    // ----------------------------------
+    // Find Candidate Profile
+    // ----------------------------------
+
+    const profile = await CandidateProfile.findOne({
+        user: user._id
+    });
+
+    if (!profile) {
+        throw new Error("Candidate profile not found.");
+    }
+
+    // ----------------------------------
+    // Already verified?
+    // ----------------------------------
+
+    if (profile.profileVerified) {
+        throw new Error("Candidate is already verified.");
+    }
+
+    // ----------------------------------
+    // Existing Pending Payment
+    // ----------------------------------
+
+    const existingPayment = await Payment.findOne({
+        user: user._id,
+        type: "verification",
+        status: "pending"
+    });
+
+    if (existingPayment) {
+
+        const paymentData = {
+
+            merchant_id: process.env.PAYFAST_MERCHANT_ID,
+
+            merchant_key: process.env.PAYFAST_MERCHANT_KEY,
+
+            return_url: process.env.PAYFAST_RETURN_URL,
+
+            cancel_url: process.env.PAYFAST_CANCEL_URL,
+
+            notify_url: process.env.PAYFAST_NOTIFY_URL,
+
+            amount: existingPayment.amount.toFixed(2),
+
+            item_name: "Candidate Verification",
+
+            m_payment_id: existingPayment.merchantPaymentId,
+
+            custom_str1: existingPayment._id.toString(),
+
+            custom_str2: user._id.toString(),
+
+            custom_str3: "verification"
+
+        };
+
+        return {
+
+            payment: existingPayment,
+
+            paymentUrl:
+                payfastService.generatePaymentUrl(paymentData)
+
+        };
+
+    }
+
+    // ----------------------------------
+    // Verification Fee
+    // ----------------------------------
+
+    const verificationFee = 100;
+
+    const merchantPaymentId =
+        `VERIFY-${Date.now()}-${Math.floor(Math.random()*9999)}`;
+
+    const payment = await Payment.create({
+
+        user: user._id,
+
+        type: "verification",
+
+        referenceId: profile._id,
+
+        amount: verificationFee,
+
+        merchantPaymentId,
+
+        gateway: "PayFast",
+
+        paymentMethod: "payfast"
+
+    });
+
+    const paymentData = {
+
+        merchant_id: process.env.PAYFAST_MERCHANT_ID,
+
+        merchant_key: process.env.PAYFAST_MERCHANT_KEY,
+
+        return_url: process.env.PAYFAST_RETURN_URL,
+
+        cancel_url: process.env.PAYFAST_CANCEL_URL,
+
+        notify_url: process.env.PAYFAST_NOTIFY_URL,
+
+        amount: verificationFee.toFixed(2),
+
+        item_name: "Candidate Verification",
+
+        m_payment_id: merchantPaymentId,
+
+        custom_str1: payment._id.toString(),
+
+        custom_str2: user._id.toString(),
+
+        custom_str3: "verification"
+
+    };
+
+    return {
+
+        payment,
+
+        paymentUrl:
+            payfastService.generatePaymentUrl(paymentData)
+
+    };
+
+};
+
 /**
  * -------------------------------------------------------
  * PROCESS PAYFAST ITN
@@ -297,6 +437,8 @@ const processITN = async (payload) => {
 module.exports = {
 
     createSubscriptionPayment,
+
+    createVerificationPayment,
 
     processITN
 

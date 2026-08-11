@@ -420,19 +420,47 @@ const processITN = async (payload) => {
 
     await payment.save();
 
-    // Activate subscription
+// ==========================================
+// COMPLETE PAYMENT ACTION
+// ==========================================
+
+if (payment.type === "subscription") {
+
+    // ======================================
+    // EMPLOYER SUBSCRIPTION
+    // ======================================
 
     await subscriptionService.activateSubscription(
-
         payment.user,
-
         payment.referenceId
-
     );
 
-    return payment;
+}
 
-};
+else if (payment.type === "verification") {
+
+    // ======================================
+    // CANDIDATE VERIFICATION
+    // ======================================
+
+    const profile = await CandidateProfile.findById(
+        payment.referenceId
+    );
+
+    if (!profile) {
+        throw new Error(
+            "Candidate profile not found for verification payment."
+        );
+    }
+
+    profile.profileVerified = true;
+
+    await profile.save();
+
+}
+
+return payment;
+}
 
 module.exports = {
 

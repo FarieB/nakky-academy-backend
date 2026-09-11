@@ -13,18 +13,16 @@ const {
   addCourseContent,
   uploadLessonVideo,
   streamVideo,
-  enrollCourse,
+  createCoursePayment,
   getCourseContent,
   updateProgress,
   issueCertificate,
   downloadCertificate,
 } = courseController;
 
-//
-// ==============================
+// =====================================================
 // ADMIN ROUTES
-// ==============================
-//
+// =====================================================
 
 // Create Course
 router.post(
@@ -42,6 +40,7 @@ router.post(
   createCourse
 );
 
+
 // Update Course
 router.put(
   "/:courseId",
@@ -57,6 +56,7 @@ router.put(
   },
   courseController.updateCourse
 );
+
 
 // Delete Course
 router.delete(
@@ -74,6 +74,7 @@ router.delete(
   courseController.deleteCourse
 );
 
+
 // Publish Course
 router.put(
   "/:courseId/publish",
@@ -89,6 +90,7 @@ router.put(
   },
   courseController.publishCourse
 );
+
 
 // Unpublish Course
 router.put(
@@ -106,6 +108,7 @@ router.put(
   courseController.unpublishCourse
 );
 
+
 // Add Lesson
 router.post(
   "/:courseId/content",
@@ -121,6 +124,7 @@ router.post(
   },
   addCourseContent
 );
+
 
 // Upload Lesson Video
 router.post(
@@ -139,85 +143,73 @@ router.post(
   uploadLessonVideo
 );
 
-router.post(
-  "/:courseId/lessons/:lessonId/video",
-  protect,
-  upload.single("video"),
-  courseController.uploadLessonVideo
-);
 
-//
-// ==============================
-// PAYFAST WEBHOOK ROUTES (UNPROTECTED)
-// ==============================
-//
-
-// Step 4 — PayFast Instant Transaction Notification (ITN)
-router.post(
-  "/payfast/itn",
-  courseController.coursePaymentITN
-);
-
-//
-// ==============================
-// AUTHENTICATED ROUTES
-// ==============================
-//
-
-// Browse Courses
-router.get("/", protect, getAllCourses);
-
-// Single Course
-router.get("/:courseId", protect, getCourseById);
-
-//
-// ==============================
+// =====================================================
 // STUDENT ROUTES
-// ==============================
-//
+// =====================================================
 
-// Purchase Course via PayFast
-router.post("/:courseId/purchase", protect, courseController.purchaseCourse);
-
-// Purchase Course
-router.post(
-  "/:courseId/purchase",
+// Browse available courses
+router.get(
+  "/",
   protect,
-  courseController.purchaseCourse
+  getAllCourses
 );
 
-// Enroll
-router.post("/:courseId/enroll", protect, enrollCourse);
 
-// Course Content
-router.get("/:courseId/content", protect, getCourseContent);
+// Create EFT payment for course
+router.post(
+  "/:courseId/payment",
+  protect,
+  createCoursePayment
+);
 
-// Stream Video
+
+// Get single course
+router.get(
+  "/:courseId",
+  protect,
+  getCourseById
+);
+
+
+// Access paid course content
+router.get(
+  "/:courseId/content",
+  protect,
+  getCourseContent
+);
+
+
+// Stream lesson video
 router.get(
   "/:courseId/video/:filename",
   protect,
   streamVideo
 );
 
-// Progress
+
+// Update learning progress
 router.put(
   "/:courseId/progress",
   protect,
   updateProgress
 );
 
-// Issue Certificate
+
+// Issue certificate
 router.get(
   "/:courseId/certificate",
   protect,
   issueCertificate
 );
 
-// Download Certificate
+
+// Download certificate
 router.get(
   "/:courseId/download-certificate",
   protect,
   downloadCertificate
 );
+
 
 module.exports = router;

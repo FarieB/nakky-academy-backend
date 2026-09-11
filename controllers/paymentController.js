@@ -1,119 +1,557 @@
-const SubscriptionPlan = require("../models/SubscriptionPlan");
+const SubscriptionPlan =
+    require("../models/SubscriptionPlan");
 
-const paymentService = require("../services/paymentService");
+const Payment =
+    require("../models/Payment");
 
-const payfastService = require("../services/payfastService");
+const paymentService =
+    require("../services/paymentService");
 
-// =======================================
-// Create Subscription Payment
-// =======================================
+
+// =====================================================
+// EMPLOYER SUBSCRIPTION PAYMENT
+// =====================================================
 
 exports.createSubscription = async (req, res) => {
 
     try {
 
-        const plan = await SubscriptionPlan.findById(
+        const { planId } =
+            req.body;
 
-            req.body.planId
 
-        );
+        if (!planId) {
 
-        if (!plan) {
+            return res.status(400).json({
 
-            return res.status(404).json({
-
-                message: "Subscription plan not found."
+                message:
+                    "Subscription plan is required."
 
             });
 
         }
 
-        const payment = await paymentService.createSubscriptionPayment(
 
-            req.user,
+        const plan =
+            await SubscriptionPlan.findById(
+                planId
+            );
 
-            plan._id
 
-        );
+        if (!plan) {
 
-        return res.status(200).json(payment);
+            return res.status(404).json({
 
-    }
+                message:
+                    "Subscription plan not found."
 
-    catch (err) {
-
-        console.error(err);
-
-        return res.status(500).json({
-
-            message: err.message
-
-        });
-
-    }
-
-};
-
-// =======================================
-// Create Candidate Verification Payment
-// =======================================
-
-exports.createVerificationPayment = async (req, res) => {
-
-    try {
-
-        const payment = await paymentService.createVerificationPayment(
-            req.user
-        );
-
-        return res.status(200).json(payment);
-
-    }
-
-    catch (err) {
-
-        console.error(err);
-
-        return res.status(500).json({
-
-            message: err.message
-
-        });
-
-    }
-
-};
-
-// =======================================
-// PayFast ITN
-// =======================================
-
-exports.handleITN = async (req, res) => {
-
-    try {
-
-        // Verify with PayFast
-
-        const valid = await payfastService.verifyITN(req.body);
-
-        if (!valid) {
-
-            return res.status(400).send("INVALID");
+            });
 
         }
 
-        await paymentService.processITN(req.body);
 
-        return res.status(200).send("OK");
+        const result =
+            await paymentService.createSubscriptionPayment(
+
+                req.user,
+
+                plan._id
+
+            );
+
+
+        return res.status(201).json(
+            result
+        );
 
     }
 
     catch (err) {
 
-        console.error(err);
+        console.error(
+            "CREATE SUBSCRIPTION ERROR:",
+            err
+        );
 
-        return res.status(500).send("FAILED");
+
+        return res.status(500).json({
+
+            message:
+                err.message
+
+        });
 
     }
 
 };
+
+
+// =====================================================
+// CANDIDATE VERIFICATION PAYMENT
+// =====================================================
+
+exports.createVerificationPayment =
+    async (req, res) => {
+
+        try {
+
+            const result =
+                await paymentService.createVerificationPayment(
+
+                    req.user
+
+                );
+
+
+            return res.status(201).json(
+                result
+            );
+
+        }
+
+        catch (err) {
+
+            console.error(
+                "CREATE VERIFICATION PAYMENT ERROR:",
+                err
+            );
+
+
+            return res.status(500).json({
+
+                message:
+                    err.message
+
+            });
+
+        }
+
+    };
+
+
+// =====================================================
+// STUDENT COURSE PAYMENT
+// =====================================================
+
+exports.createCoursePayment =
+    async (req, res) => {
+
+        try {
+
+            const { courseId } =
+                req.body;
+
+
+            if (!courseId) {
+
+                return res.status(400).json({
+
+                    message:
+                        "Course ID is required."
+
+                });
+
+            }
+
+
+            const result =
+                await paymentService.createCoursePayment(
+
+                    req.user,
+
+                    courseId
+
+                );
+
+
+            return res.status(201).json(
+                result
+            );
+
+        }
+
+        catch (err) {
+
+            console.error(
+                "CREATE COURSE PAYMENT ERROR:",
+                err
+            );
+
+
+            return res.status(500).json({
+
+                message:
+                    err.message
+
+            });
+
+        }
+
+    };
+
+
+// =====================================================
+// UPLOAD EFT PROOF OF PAYMENT
+// =====================================================
+
+exports.uploadProofOfPayment = async (req, res) => {
+
+    try {
+
+        const { paymentId } = req.body;
+
+
+        // ===================================
+        // CHECK PAYMENT ID
+        // ===================================
+
+        if (!paymentId) {
+
+            return res.status(400).json({
+
+                message: "Payment ID is required."
+
+            });
+
+        }
+
+
+        // ===================================
+        // CHECK FILE
+        // ===================================
+
+        if (!req.file) {
+
+            return res.status(400).json({
+
+                message: "Please select a proof of payment file."
+
+            });
+
+        }
+
+
+        // ===================================
+        // FIND PAYMENT
+        // ===================================
+
+        const payment = await Payment.findById(paymentId);
+
+
+        if (!payment) {
+
+            return res.status(404).json({
+
+                message: "Payment not found."
+
+            });
+
+        }
+
+
+        // ===================================
+        // SECURITY CHECK
+        // USER MUST OWN PAYMENT
+        // ===================================
+
+        if (
+            payment.user.toString() !==
+            req.user._id.toString()
+        ) {
+
+            return res.status(403).json({
+
+                message:
+                    "You are not authorised to upload proof for this payment."
+
+            });
+
+        }
+
+
+        // ===================================
+        // PAYMENT MUST BE EFT
+        // ===================================
+
+        if (payment.paymentMethod !== "eft") {
+
+            return res.status(400).json({
+
+                message:
+                    "Proof of payment can only be uploaded for EFT payments."
+
+            });
+
+        }
+
+
+        // ===================================
+        // SAVE PROOF
+        // ===================================
+
+        payment.proofOfPayment =
+            `/uploads/proofs/${req.file.filename}`;
+
+        payment.proofSubmittedAt =
+            new Date();
+
+        payment.proofStatus =
+            "submitted";
+
+
+        await payment.save();
+
+
+        return res.status(200).json({
+
+            message:
+                "Proof of payment uploaded successfully. Your payment is now awaiting verification.",
+
+            payment: {
+
+                _id: payment._id,
+
+                paymentReference:
+                    payment.paymentReference,
+
+                amount:
+                    payment.amount,
+
+                proofOfPayment:
+                    payment.proofOfPayment,
+
+                proofStatus:
+                    payment.proofStatus
+
+            }
+
+        });
+
+    }
+
+    catch (err) {
+
+        console.error(
+            "UPLOAD PROOF ERROR:",
+            err
+        );
+
+        return res.status(500).json({
+
+            message:
+                err.message ||
+                "Failed to upload proof of payment."
+
+        });
+
+    }
+
+};
+
+
+// =====================================================
+// GET MY PAYMENTS
+// =====================================================
+
+exports.getMyPayments =
+    async (req, res) => {
+
+        try {
+
+            const payments =
+                await Payment.find({
+
+                    user:
+                        req.user._id
+
+                })
+                    .sort({
+                        createdAt: -1
+                    });
+
+
+            return res.json(
+                payments
+            );
+
+        }
+
+        catch (err) {
+
+            return res.status(500).json({
+
+                message:
+                    err.message
+
+            });
+
+        }
+
+    };
+
+
+// =====================================================
+// ADMIN: GET ALL PAYMENTS
+// =====================================================
+
+exports.getAllPayments =
+    async (req, res) => {
+
+        try {
+
+            const payments =
+                await Payment.find()
+
+                    .populate(
+                        "user",
+                        "name email role"
+                    )
+
+                    .populate(
+                        "verifiedBy",
+                        "name email"
+                    )
+
+                    .sort({
+
+                        createdAt: -1
+
+                    });
+
+
+            return res.json(
+                payments
+            );
+
+        }
+
+        catch (err) {
+
+            return res.status(500).json({
+
+                message:
+                    err.message
+
+            });
+
+        }
+
+    };
+
+
+// =====================================================
+// ADMIN: APPROVE PAYMENT
+// =====================================================
+
+exports.approvePayment =
+    async (req, res) => {
+
+        try {
+
+            const {
+
+                adminNotes
+
+            } = req.body;
+
+
+            const payment =
+                await paymentService.approvePayment(
+
+                    req.params.paymentId,
+
+                    req.user._id,
+
+                    adminNotes
+
+                );
+
+
+            return res.json({
+
+                message:
+                    "Payment approved successfully.",
+
+                payment
+
+            });
+
+        }
+
+        catch (err) {
+
+            console.error(
+                "APPROVE PAYMENT ERROR:",
+                err
+            );
+
+
+            return res.status(500).json({
+
+                message:
+                    err.message
+
+            });
+
+        }
+
+    };
+
+
+// =====================================================
+// ADMIN: REJECT PAYMENT
+// =====================================================
+
+exports.rejectPayment =
+    async (req, res) => {
+
+        try {
+
+            const {
+
+                adminNotes
+
+            } = req.body;
+
+
+            const payment =
+                await paymentService.rejectPayment(
+
+                    req.params.paymentId,
+
+                    req.user._id,
+
+                    adminNotes
+
+                );
+
+
+            return res.json({
+
+                message:
+                    "Payment rejected.",
+
+                    payment
+
+            });
+
+        }
+
+        catch (err) {
+
+            console.error(
+                "REJECT PAYMENT ERROR:",
+                err
+            );
+
+
+            return res.status(500).json({
+
+                message:
+                    err.message
+
+            });
+
+        }
+
+    };

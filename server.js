@@ -22,6 +22,11 @@ app.use(express.json());
 
 app.use(express.urlencoded({ extended: true }));
 
+app.use(
+    "/uploads",
+    express.static("uploads")
+);
+
 // ==============================
 // Create HTTP Server
 // ==============================
@@ -87,6 +92,7 @@ app.use("/api/search", searchRoutes);
 app.use("/api/messages", messageRoutes);
 
 app.use("/api/notifications", notificationRoutes);
+
 
 
 // ==============================

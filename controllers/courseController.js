@@ -4,22 +4,45 @@ const path = require("path");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const fs = require("fs");
-const Payment = require("../models/Payment");
-const payfastService = require("../services/payfastService");
+
+const paymentService = require("../services/paymentService");
+
 const {
   refreshAdminDashboard,
 } = require("../services/socketService");
 
 
-// ==============================
-// GET ALL COURSES (NEW - REQUIRED)
-// ==============================
+
+
+// =====================================================
+// GET ALL AVAILABLE COURSES
+// =====================================================
+
 exports.getAllCourses = async (req, res) => {
   try {
-    const courses = await Course.find().select("-content");
+
+    let query = {};
+
+    // Students should only see published courses
+    if (req.user.role === "student") {
+      query.published = true;
+    }
+
+    const courses = await Course.find(query)
+      .select("-content")
+      .sort({ createdAt: -1 });
+
     res.json(courses);
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    console.error("GET COURSES ERROR:", err);
+
+    res.status(500).json({
+      message: "Unable to load courses.",
+      error: err.message,
+    });
+
   }
 };
 
@@ -477,78 +500,204 @@ exports.getCourseContent = async (req, res) => {
 };
 
 
-// ==============================
-// STREAM VIDEO (SAFE VERSION)
-// ==============================
+// =====================================================
+// STREAM VIDEO
+// PAID STUDENTS ONLY
+// =====================================================
+
 exports.streamVideo = async (req, res) => {
+
   try {
-    const enrollment = await Enrollment.findOne({
-      student: req.user._id,
-      course: req.params.courseId,
-      paymentStatus: "paid"
-    });
 
-    const videoPath = path.join(
-      __dirname,
-      "../uploads/videos",
-      req.params.filename
-    );
+    // ==========================================
+    // CHECK PAID ENROLLMENT
+    // ==========================================
 
-    const errorMap = {
-      noEnrollment: { status: 403, message: "Access denied" },
-      noVideo: { status: 404, message: "Video not found" }
-    };
+    const enrollment =
+      await Enrollment.findOne({
 
-    const errorKey = !enrollment
-      ? "noEnrollment"
-      : (!fs.existsSync(videoPath) ? "noVideo" : null);
+        student: req.user._id,
 
-    if (errorKey) {
-      const { status, message } = errorMap[errorKey];
-      return res.status(status).json({ message });
+        course: req.params.courseId,
+
+        paymentStatus: "paid"
+
+      });
+
+
+    if (!enrollment) {
+
+      return res.status(403).json({
+
+        message:
+          "You must complete payment before accessing this course."
+
+      });
+
     }
 
-    const stat = fs.statSync(videoPath);
-    const fileSize = stat.size;
-    const range = req.headers.range;
-    return null;
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-    return null;
-  }
-};
 
-exports.streamVideo = async (req, res) => {
-  try {
-    if (range) {
-      const parts = range.replace(/bytes=/, "").split("-");
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    // ==========================================
+    // FIND VIDEO
+    // ==========================================
 
-      const chunkSize = end - start + 1;
+    const videoPath =
+      path.join(
 
-      const file = fs.createReadStream(videoPath, { start, end });
+        __dirname,
 
-      res.writeHead(206, {
-        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-        "Accept-Ranges": "bytes",
-        "Content-Length": chunkSize,
-        "Content-Type": "video/mp4"
+        "../uploads/videos",
+
+        req.params.filename
+
+      );
+
+
+    if (!fs.existsSync(videoPath)) {
+
+      return res.status(404).json({
+
+        message: "Video not found."
+
       });
+
+    }
+
+
+    // ==========================================
+    // VIDEO INFORMATION
+    // ==========================================
+
+    const stat =
+      fs.statSync(videoPath);
+
+    const fileSize =
+      stat.size;
+
+    const range =
+      req.headers.range;
+
+
+    // ==========================================
+    // STREAM PARTIAL VIDEO
+    // ==========================================
+
+    if (range) {
+
+      const parts =
+        range
+          .replace(/bytes=/, "")
+          .split("-");
+
+
+      const start =
+        parseInt(parts[0], 10);
+
+
+      const end =
+        parts[1]
+          ? parseInt(parts[1], 10)
+          : fileSize - 1;
+
+
+      const chunkSize =
+        end - start + 1;
+
+
+      const file =
+        fs.createReadStream(
+
+          videoPath,
+
+          {
+            start,
+            end
+          }
+
+        );
+
+
+      res.writeHead(
+
+        206,
+
+        {
+
+          "Content-Range":
+            `bytes ${start}-${end}/${fileSize}`,
+
+          "Accept-Ranges":
+            "bytes",
+
+          "Content-Length":
+            chunkSize,
+
+          "Content-Type":
+            "video/mp4"
+
+        }
+
+      );
+
 
       file.pipe(res);
-    } else {
-      res.writeHead(200, {
-        "Content-Length": fileSize,
-        "Content-Type": "video/mp4"
-      });
 
-      fs.createReadStream(videoPath).pipe(res);
     }
+
+
+    // ==========================================
+    // STREAM FULL VIDEO
+    // ==========================================
+
+    else {
+
+      res.writeHead(
+
+        200,
+
+        {
+
+          "Content-Length":
+            fileSize,
+
+          "Content-Type":
+            "video/mp4"
+
+        }
+
+      );
+
+
+      fs
+        .createReadStream(videoPath)
+        .pipe(res);
+
+    }
+
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    console.error(
+      "VIDEO STREAM ERROR:",
+      err
+    );
+
+
+    res.status(500).json({
+
+      message:
+        "Unable to stream video.",
+
+      error:
+        err.message
+
+    });
+
   }
+
 };
+
+
 
 
 // ==============================
@@ -846,139 +995,56 @@ exports.downloadCertificate = async (req, res) => {
   }
 };
 
-// ======================================
-// STUDENT: PURCHASE COURSE
-// ======================================
-exports.purchaseCourse = async (req, res) => {
+// =====================================================
+// STUDENT: CREATE COURSE EFT PAYMENT
+// =====================================================
+
+exports.createCoursePayment = async (req, res) => {
+
   try {
-    const courseId = req.params.courseId;
 
-    // Find course
-    const course = await Course.findById(courseId);
+    // ==========================================
+    // STUDENT ONLY
+    // ==========================================
 
-    if (!course) {
-      return res.status(404).json({
-        message: "Course not found",
-      });
-    }
+    if (req.user.role !== "student") {
 
-    // Check if already enrolled
-    let enrollment = await Enrollment.findOne({
-      student: req.user._id,
-      course: courseId,
-    });
-
-    if (enrollment && enrollment.paymentStatus === "paid") {
-      return res.status(400).json({
-        message: "You have already purchased this course.",
-      });
-    }
-
-    // Create pending enrollment if it doesn't exist
-    if (!enrollment) {
-      enrollment = await Enrollment.create({
-        student: req.user._id,
-        course: courseId,
-        paymentStatus: "pending",
-        coursePrice: course.price,
-        progress: 0,
-      });
-    }
-
-    // ======================================
-    // Create Payment Record
-    // ======================================
-    const merchantPaymentId =
-      "COURSE-" +
-      Date.now() +
-      "-" +
-      Math.floor(Math.random() * 100000);
-
-    const payment = await Payment.create({
-      user: req.user._id,
-      type: "course",
-      referenceId: course._id,
-      amount: course.price,
-      status: "pending",
-      merchantPaymentId,
-      gateway: "PayFast",
-      paymentMethod: "payfast",
-    });
-
-    // Link the payment back to the enrollment so ITN function works
-    enrollment.paymentReference = payment._id;
-    await enrollment.save();
-
-    // Generate PayFast payment URL
-    const paymentUrl =
-      await payfastService.createCoursePayment({
-        payment,
-        course,
-        user: req.user,
+      return res.status(403).json({
+        message: "Only students can purchase courses."
       });
 
-    return res.status(200).json({
-      message: "Payment initiated successfully.",
-      paymentUrl,
-      paymentId: payment._id,
-      enrollmentId: enrollment._id,
-    });
-  } catch (err) {
-    console.error(err);
-
-    return res.status(500).json({
-      message: "Unable to initiate course purchase.",
-      error: err.message,
-    });
-  }
-};
-
-// ==============================
-// PAYFAST ITN
-// ==============================
-exports.coursePaymentITN = async (req, res) => {
-  try {
-    const valid = await payfastService.verifyITN(req.body);
-
-    if (!valid) {
-      return res.status(400).send("INVALID");
     }
 
-    const payment = await Payment.findOne({
-      merchantPaymentId: req.body.m_payment_id,
-    });
 
-    if (!payment) {
-      return res.status(404).send("Payment not found");
-    }
+    // ==========================================
+    // CREATE EFT PAYMENT
+    // ==========================================
 
-    payment.status = "paid";
-    payment.paymentStatus = req.body.payment_status;
-    payment.gatewayReference = req.body.pf_payment_id;
-    payment.paymentDate = new Date();
-    payment.itnPayload = req.body;
+    const result =
+      await paymentService.createCoursePayment(
+        req.user,
+        req.params.courseId
+      );
 
-    await payment.save();
 
-    // UPGRADE: Match enrollment safely using explicit structural references
-    const enrollment = await Enrollment.findOne({
-      student: payment.user,
-      course: payment.referenceId,
-    });
-
-    if (enrollment) {
-      enrollment.paymentStatus = "paid";
-      enrollment.paymentDate = new Date();
-      enrollment.paymentReference = payment._id; // Records exactly which payment unlocked this course
-
-      await enrollment.save();
-    }
-
-    return res.sendStatus(200);
+    return res.status(200).json(result);
 
   } catch (err) {
-    console.error(err);
 
-    return res.status(500).send("ERROR");
+    console.error(
+      "COURSE PAYMENT ERROR:",
+      err.message
+    );
+
+
+    return res.status(400).json({
+
+      message:
+        err.message ||
+        "Unable to create course payment."
+
+    });
+
   }
+
 };

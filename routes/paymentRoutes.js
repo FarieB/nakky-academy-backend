@@ -2,42 +2,68 @@ const express = require("express");
 
 const router = express.Router();
 
-const auth = require("../middleware/authMiddleware");
+const paymentController =
+    require("../controllers/paymentController");
 
-const paymentController = require("../controllers/paymentController");
+const authMiddleware =
+    require("../middleware/authMiddleware");
 
-// Employer subscribes
+const upload =
+    require("../middleware/upload");
+
+
+// =======================================
+// CREATE EMPLOYER SUBSCRIPTION PAYMENT
+// =======================================
 
 router.post(
-
     "/subscription",
 
-    auth,
+    authMiddleware,
 
     paymentController.createSubscription
-
 );
 
-// Candidate Verification Payment
+
+// =======================================
+// CREATE CANDIDATE VERIFICATION PAYMENT
+// =======================================
 
 router.post(
-
     "/verification",
 
-    auth,
+    authMiddleware,
 
     paymentController.createVerificationPayment
-
 );
 
-// PayFast ITN
+
+// =======================================
+// CREATE STUDENT COURSE PAYMENT
+// =======================================
 
 router.post(
+    "/course",
 
-    "/itn",
+    authMiddleware,
 
-    paymentController.handleITN
-
+    paymentController.createCoursePayment
 );
+
+
+// =======================================
+// UPLOAD EFT PROOF OF PAYMENT
+// =======================================
+
+router.post(
+    "/upload-proof",
+
+    authMiddleware,
+
+    upload.single("proof"),
+
+    paymentController.uploadProofOfPayment
+);
+
 
 module.exports = router;

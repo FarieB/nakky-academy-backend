@@ -1,214 +1,338 @@
 const express = require("express");
+
 const router = express.Router();
 
 const protect = require("../middleware/authMiddleware");
-const upload = require("../middleware/videoUpload");
+
+const videoUpload = require("../middleware/videoUpload");
+
+const courseMaterialUpload = require("../middleware/courseMaterialUpload");
 
 const courseController = require("../controllers/courseController");
 
-const {
-  createCourse,
-  getAllCourses,
-  getCourseById,
-  addCourseContent,
-  uploadLessonVideo,
-  streamVideo,
-  createCoursePayment,
-  getCourseContent,
-  updateProgress,
-  issueCertificate,
-  downloadCertificate,
-} = courseController;
 
-// =====================================================
-// ADMIN ROUTES
-// =====================================================
+/**
+ * ============================================================
+ * ADMIN ONLY MIDDLEWARE
+ * ============================================================
+ */
+const adminOnly = (req, res, next) => {
+    if (
+        !req.user ||
+        req.user.role !== "admin"
+    ) {
+        return res.status(403).json({
+            message: "Admin only.",
+        });
+    }
 
-// Create Course
+    next();
+};
+
+
+/**
+ * ============================================================
+ * COURSE MANAGEMENT
+ * ============================================================
+ */
+
+/**
+ * Create course
+ */
 router.post(
-  "/",
-  protect,
-  (req, res, next) => {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({
-        message: "Only admins can create courses",
-      });
-    }
-
-    next();
-  },
-  createCourse
+    "/",
+    protect,
+    adminOnly,
+    courseController.createCourse
 );
 
 
-// Update Course
+/**
+ * Update complete course structure
+ *
+ * This updates:
+ *
+ * Course
+ * ├── Modules
+ * ├── Lessons
+ * ├── Assignments
+ * └── Final Exam
+ */
 router.put(
-  "/:courseId",
-  protect,
-  (req, res, next) => {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({
-        message: "Only admins can update courses",
-      });
-    }
-
-    next();
-  },
-  courseController.updateCourse
+    "/:courseId",
+    protect,
+    adminOnly,
+    courseController.updateCourse
 );
 
 
-// Delete Course
+/**
+ * Delete course
+ */
 router.delete(
-  "/:courseId",
-  protect,
-  (req, res, next) => {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({
-        message: "Only admins can delete courses",
-      });
-    }
-
-    next();
-  },
-  courseController.deleteCourse
+    "/:courseId",
+    protect,
+    adminOnly,
+    courseController.deleteCourse
 );
 
 
-// Publish Course
+/**
+ * Publish course
+ */
 router.put(
-  "/:courseId/publish",
-  protect,
-  (req, res, next) => {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({
-        message: "Only admins can publish courses",
-      });
-    }
-
-    next();
-  },
-  courseController.publishCourse
+    "/:courseId/publish",
+    protect,
+    adminOnly,
+    courseController.publishCourse
 );
 
 
-// Unpublish Course
+/**
+ * Unpublish course
+ */
 router.put(
-  "/:courseId/unpublish",
-  protect,
-  (req, res, next) => {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({
-        message: "Only admins can unpublish courses",
-      });
-    }
-
-    next();
-  },
-  courseController.unpublishCourse
+    "/:courseId/unpublish",
+    protect,
+    adminOnly,
+    courseController.unpublishCourse
 );
 
 
-// Add Lesson
+/**
+ * ============================================================
+ * LEGACY COURSE CONTENT
+ * ============================================================
+ *
+ * Kept temporarily for compatibility.
+ */
 router.post(
-  "/:courseId/content",
-  protect,
-  (req, res, next) => {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({
-        message: "Only admins can add lessons",
-      });
-    }
-
-    next();
-  },
-  addCourseContent
+    "/:courseId/content",
+    protect,
+    adminOnly,
+    courseController.addCourseContent
 );
 
 
-// Upload Lesson Video
+/**
+ * ============================================================
+ * LESSON VIDEO UPLOAD
+ * ============================================================
+ *
+ * NEW STRUCTURE:
+ *
+ * Course
+ *   → Module
+ *      → Lesson
+ *         → Video
+ */
 router.post(
-  "/:courseId/lessons/:lessonId/video",
-  protect,
-  (req, res, next) => {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({
-        message: "Only admins can upload videos",
-      });
-    }
-
-    next();
-  },
-  upload.single("video"),
-  uploadLessonVideo
+    "/:courseId/modules/:moduleId/lessons/:lessonId/video",
+    protect,
+    adminOnly,
+    videoUpload.single("video"),
+    courseController.uploadLessonVideo
 );
 
 
-// =====================================================
-// STUDENT ROUTES
-// =====================================================
-
-// Browse available courses
-router.get(
-  "/",
-  protect,
-  getAllCourses
-);
-
-
-// Create EFT payment for course
+/**
+ * ============================================================
+ * LEGACY VIDEO UPLOAD
+ * ============================================================
+ *
+ * Kept so old frontend code doesn't immediately break.
+ */
 router.post(
-  "/:courseId/payment",
-  protect,
-  createCoursePayment
+    "/:courseId/lessons/:lessonId/video",
+    protect,
+    adminOnly,
+    videoUpload.single("video"),
+    courseController.uploadLessonVideo
 );
 
 
-// Get single course
+/**
+ * ============================================================
+ * PDF / AUDIO MATERIAL UPLOAD
+ * ============================================================
+ *
+ * Multiple files can be uploaded to the same lesson,
+ * one request at a time.
+ *
+ * The frontend can simply call this endpoint repeatedly:
+ *
+ * PDF 1
+ * PDF 2
+ * PDF 3
+ * Audio 1
+ * Audio 2
+ * etc.
+ */
+router.post(
+    "/:courseId/modules/:moduleId/lessons/:lessonId/material",
+    protect,
+    adminOnly,
+    courseMaterialUpload.single("material"),
+    courseController.uploadLessonMaterial
+);
+
+
+/**
+ * ============================================================
+ * DELETE LESSON MATERIAL
+ * ============================================================
+ */
+router.delete(
+    "/:courseId/modules/:moduleId/lessons/:lessonId/materials/:materialId",
+    protect,
+    adminOnly,
+    courseController.deleteLessonMaterial
+);
+
+
+/**
+ * ============================================================
+ * GET COURSES
+ * ============================================================
+ *
+ * Admin:
+ *   receives complete course structure.
+ *
+ * Student:
+ *   receives published courses with safe overview.
+ */
 router.get(
-  "/:courseId",
-  protect,
-  getCourseById
+    "/",
+    protect,
+    courseController.getAllCourses
 );
 
 
-// Access paid course content
+/**
+ * ============================================================
+ * GET SINGLE COURSE
+ * ============================================================
+ *
+ * Admin:
+ *   complete modules/materials.
+ *
+ * Student:
+ *   safe course overview.
+ */
 router.get(
-  "/:courseId/content",
-  protect,
-  getCourseContent
+    "/:courseId",
+    protect,
+    courseController.getCourseById
 );
 
 
-// Stream lesson video
+/**
+ * ============================================================
+ * COURSE PAYMENT
+ * ============================================================
+ */
+router.post(
+    "/:courseId/payment",
+    protect,
+    courseController.createCoursePayment
+);
+
+
+/**
+ * ============================================================
+ * COURSE ENROLLMENT
+ * ============================================================
+ */
+router.post(
+    "/:courseId/enroll",
+    protect,
+    courseController.enrollCourse
+);
+
+
+/**
+ * ============================================================
+ * PAID COURSE CONTENT
+ * ============================================================
+ */
 router.get(
-  "/:courseId/video/:filename",
-  protect,
-  streamVideo
+    "/:courseId/content",
+    protect,
+    courseController.getCourseContent
 );
 
 
-// Update learning progress
+/**
+ * ============================================================
+ * PROTECTED VIDEO STREAMING
+ * ============================================================
+ *
+ * Example:
+ *
+ * GET /courses/COURSE_ID/video/FILENAME.mp4
+ */
+router.get(
+    "/:courseId/video/:filename",
+    protect,
+    courseController.streamVideo
+);
+
+
+/**
+ * ============================================================
+ * PROTECTED PDF / AUDIO ACCESS
+ * ============================================================
+ *
+ * Example:
+ *
+ * GET /courses/COURSE_ID/material/FILENAME.pdf
+ *
+ * The controller checks:
+ *
+ * 1. User is authenticated
+ * 2. User paid for the course
+ * 3. File belongs to that course
+ */
+router.get(
+    "/:courseId/material/:filename",
+    protect,
+    courseController.streamMaterial
+);
+
+
+/**
+ * ============================================================
+ * UPDATE COURSE PROGRESS
+ * ============================================================
+ */
 router.put(
-  "/:courseId/progress",
-  protect,
-  updateProgress
+    "/:courseId/progress",
+    protect,
+    courseController.updateProgress
 );
 
 
-// Issue certificate
+/**
+ * ============================================================
+ * CERTIFICATE
+ * ============================================================
+ */
 router.get(
-  "/:courseId/certificate",
-  protect,
-  issueCertificate
+    "/:courseId/certificate",
+    protect,
+    courseController.issueCertificate
 );
 
 
-// Download certificate
+/**
+ * ============================================================
+ * DOWNLOAD CERTIFICATE
+ * ============================================================
+ */
 router.get(
-  "/:courseId/download-certificate",
-  protect,
-  downloadCertificate
+    "/:courseId/download-certificate",
+    protect,
+    courseController.downloadCertificate
 );
 
 

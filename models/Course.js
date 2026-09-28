@@ -69,13 +69,92 @@ const MaterialSchema = new mongoose.Schema(
  * VIDEO
  * ============================================================
  *
- * A lesson can have:
+ * A lesson can independently contain:
  *
- * 1. No video
- * 2. An uploaded video
- * 3. An external video link
+ * 1. An uploaded video
+ * 2. An external video link
+ *
+ * Both can exist at the same time.
  */
-const VideoSchema = new mongoose.Schema(
+
+/**
+ * Uploaded video
+ */
+const UploadedVideoSchema = new mongoose.Schema(
+  {
+    filename: {
+      type: String,
+      default: "",
+    },
+
+    title: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    uploadedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
+/**
+ * External video link
+ */
+const ExternalVideoSchema = new mongoose.Schema(
+  {
+    url: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    title: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
+/**
+ * Independent video sources.
+ *
+ * Uploaded video and external link do NOT replace
+ * each other.
+ */
+const VideosSchema = new mongoose.Schema(
+  {
+    uploaded: {
+      type: UploadedVideoSchema,
+      default: null,
+    },
+
+    external: {
+      type: ExternalVideoSchema,
+      default: null,
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
+/**
+ * LEGACY VIDEO STRUCTURE
+ *
+ * Kept temporarily so existing courses and older
+ * mobile code do not immediately break.
+ */
+const LegacyVideoSchema = new mongoose.Schema(
   {
     type: {
       type: String,
@@ -219,7 +298,7 @@ const AssignmentSchema = new mongoose.Schema(
  *
  * - Multiple PDFs
  * - Multiple audio recordings
- * - One uploaded video OR external video
+ * - One uploaded video AND/OR one external video
  */
 const LessonSchema = new mongoose.Schema(
   {
@@ -254,10 +333,28 @@ const LessonSchema = new mongoose.Schema(
     },
 
     /**
-     * Video configuration
+     * ============================================================
+     * VIDEOS
+     * ============================================================
+     *
+     * Uploaded video and external video link are independent.
+     */
+    videos: {
+      type: VideosSchema,
+      default: () => ({
+        uploaded: null,
+        external: null,
+      }),
+    },
+
+    /**
+     * Legacy video field.
+     *
+     * Kept temporarily for compatibility with older
+     * courses/mobile code.
      */
     video: {
-      type: VideoSchema,
+      type: LegacyVideoSchema,
       default: () => ({
         type: "none",
         url: "",

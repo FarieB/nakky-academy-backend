@@ -258,35 +258,137 @@ const normalizeModules = (modules = []) => {
 
         lessons: Array.isArray(module.lessons)
             ? module.lessons.map((lesson, lessonIndex) => {
-                  let videoType =
-                      lesson.video?.type || "none";
-
-                  let videoUrl =
-                      lesson.video?.url || "";
-
-                  let videoFilename =
-                      lesson.video?.filename || "";
+                  /**
+                   * ========================================================
+                   * VIDEO NORMALIZATION
+                   * ========================================================
+                   *
+                   * New structure:
+                   *
+                   * lesson.videos.uploaded
+                   * lesson.videos.external
+                   *
+                   * Legacy structure:
+                   *
+                   * lesson.video
+                   */
 
                   /**
-                   * Backward compatibility for old lesson.videoUrl.
+                   * New uploaded video
                    */
-                  if (
-                      (!lesson.video ||
-                          !lesson.video.type) &&
-                      lesson.videoUrl
-                  ) {
-                      videoType = "upload";
-                      videoUrl = lesson.videoUrl;
-                      videoFilename = lesson.videoUrl;
-                  }
+                  let uploadedVideo = null;
 
                   if (
-                      videoType === "external" &&
-                      !isValidExternalVideoUrl(videoUrl)
+                      lesson.videos?.uploaded?.filename
                   ) {
-                      throw new Error(
-                          `Invalid external video URL in ${module.title}, Lesson ${lessonIndex + 1}.`
-                      );
+                      uploadedVideo = {
+                          filename:
+                              lesson.videos.uploaded.filename,
+
+                          title:
+                              lesson.videos.uploaded.title ||
+                              "",
+
+                          uploadedAt:
+                              lesson.videos.uploaded.uploadedAt ||
+                              new Date(),
+                      };
+                  }
+
+                  /**
+                   * New external video
+                   */
+                  let externalVideo = null;
+
+                  if (
+                      lesson.videos?.external?.url
+                  ) {
+                      const externalUrl =
+                          String(
+                              lesson.videos.external.url
+                          ).trim();
+
+                      if (
+                          !isValidExternalVideoUrl(
+                              externalUrl
+                          )
+                      ) {
+                          throw new Error(
+                              `Invalid external video URL in ${module.title}, Lesson ${lessonIndex + 1}.`
+                          );
+                      }
+
+                      externalVideo = {
+                          url: externalUrl,
+
+                          title:
+                              lesson.videos.external.title ||
+                              "",
+                      };
+                  }
+
+                  /**
+                   * ========================================================
+                   * LEGACY COMPATIBILITY
+                   * ========================================================
+                   *
+                   * Existing courses may still contain:
+                   *
+                   * lesson.video
+                   */
+                  if (
+                      !uploadedVideo &&
+                      !externalVideo &&
+                      lesson.video
+                  ) {
+                      const legacyType =
+                          lesson.video.type || "none";
+
+                      const legacyUrl =
+                          lesson.video.url || "";
+
+                      const legacyFilename =
+                          lesson.video.filename || "";
+
+                      if (
+                          legacyType === "upload" &&
+                          legacyFilename
+                      ) {
+                          uploadedVideo = {
+                              filename: legacyFilename,
+
+                              title:
+                                  lesson.video.title ||
+                                  "",
+
+                              uploadedAt:
+                                  lesson.video.uploadedAt ||
+                                  new Date(),
+                          };
+                      }
+
+                      if (
+                          legacyType === "external" &&
+                          legacyUrl
+                      ) {
+                          if (
+                              !isValidExternalVideoUrl(
+                                  legacyUrl
+                              )
+                          ) {
+                              throw new Error(
+                                  `Invalid external video URL in ${module.title}, Lesson ${lessonIndex + 1}.`
+                              );
+                          }
+
+                          externalVideo = {
+                              url: legacyUrl,
+
+                              title:
+                                  lesson.video.title ||
+                                  "",
+                          };
+                      }
                   }
 
                   return {
@@ -350,21 +452,55 @@ const normalizeModules = (modules = []) => {
                                 }))
                           : [],
 
-                      video: {
-                          type: videoType,
-
-                          url: videoUrl,
-
-                          filename:
-                              videoFilename ||
-                              (videoType === "upload"
-                                  ? videoUrl
-                                  : ""),
-
-                          title:
-                              lesson.video?.title ||
-                              "",
+                      /**
+                       * New independent video structure
+                       */
+                      videos: {
+                          uploaded: uploadedVideo,
+                          external: externalVideo,
                       },
+
+                      /**
+                       * Legacy video representation.
+                       *
+                       * If an uploaded video exists, expose it here
+                       * for older clients.
+                       *
+                       * Otherwise, if an external video exists, expose
+                       * that here.
+                       */
+                      video: uploadedVideo
+                          ? {
+                                type: "upload",
+
+                                url: uploadedVideo.filename,
+
+                                filename:
+                                    uploadedVideo.filename,
+
+                                title:
+                                    uploadedVideo.title || "",
+                            }
+                          : externalVideo
+                          ? {
+                                type: "external",
+
+                                url: externalVideo.url,
+
+                                filename: "",
+
+                                title:
+                                    externalVideo.title || "",
+                            }
+                          : {
+                                type: "none",
+
+                                url: "",
+
+                                filename: "",
+
+                                title: "",
+                            },
                   };
               })
             : [],
@@ -418,11 +554,20 @@ const sanitizeCourseContentForStudent = (course) => {
                 materials:
                     lesson.materials || [],
 
+                videos: lesson.videos || {
+                    uploaded: null,
+                    external: null,
+                },
+
+                /**
+                 * Keep legacy video for older mobile clients.
+                 */
                 video:
                     lesson.video || {
                         type: "none",
                         url: "",
                         filename: "",
+                        title: "",
                     },
             })
         ),
@@ -477,9 +622,13 @@ const sanitizeCourseOverviewForStudent = (course) => {
 
                 hasVideo:
                     Boolean(
-                        lesson.video &&
+                        lesson.videos?.uploaded?.filename ||
+                        lesson.videos?.external?.url ||
+                        (
+                            lesson.video &&
                             lesson.video.type !==
                                 "none"
+                        )
                     ),
             })
         ),
@@ -1549,13 +1698,37 @@ exports.uploadLessonVideo = async (
             });
         }
 
+        /**
+         * ========================================================
+         * SAVE UPLOADED VIDEO
+         * ========================================================
+         *
+         * This ONLY changes the uploaded video.
+         *
+         * An existing external video link remains untouched.
+         */
+        lesson.videos = lesson.videos || {};
+
+        lesson.videos.uploaded = {
+            filename: req.file.filename,
+
+            title:
+                req.body.title ||
+                req.file.originalname,
+
+            uploadedAt: new Date(),
+        };
+
+        /**
+         * Keep legacy video field synchronized so that
+         * older mobile clients continue working.
+         */
         lesson.video = {
             type: "upload",
 
             url: req.file.filename,
 
-            filename:
-                req.file.filename,
+            filename: req.file.filename,
 
             title:
                 req.body.title ||
@@ -1571,6 +1744,8 @@ exports.uploadLessonVideo = async (
                 "Lesson video uploaded successfully.",
 
             video: lesson.video,
+
+            videos: lesson.videos,
 
             course,
         });
@@ -1613,6 +1788,304 @@ exports.uploadLessonVideo = async (
 
 /**
  * ============================================================
+ * DELETE LESSON UPLOADED VIDEO
+ * ============================================================
+ *
+ * Deletes ONLY the uploaded video.
+ *
+ * An external video link is left untouched.
+ */
+exports.deleteLessonVideo = async (
+    req,
+    res
+) => {
+    try {
+        if (req.user.role !== "admin") {
+            return res.status(403).json({
+                message: "Admin only.",
+            });
+        }
+
+        const course =
+            await Course.findById(
+                req.params.courseId
+            );
+
+        if (!course) {
+            return res.status(404).json({
+                message:
+                    "Course not found.",
+            });
+        }
+
+        const {
+            module,
+            lesson,
+        } = findLesson(
+            course,
+            req.params.moduleId,
+            req.params.lessonId
+        );
+
+        if (!module || !lesson) {
+            return res.status(404).json({
+                message:
+                    "Module or lesson not found.",
+            });
+        }
+
+        /**
+         * Find the uploaded video.
+         */
+        const filename =
+            lesson.videos?.uploaded
+                ?.filename ||
+            (
+                lesson.video?.type ===
+                "upload"
+                    ? lesson.video.filename
+                    : ""
+            );
+
+        if (!filename) {
+            return res.status(404).json({
+                message:
+                    "No uploaded video found.",
+            });
+        }
+
+        /**
+         * Remove physical video file.
+         */
+        const videoPath =
+            path.join(
+                __dirname,
+                "..",
+                "uploads",
+                "videos",
+                path.basename(
+                    filename
+                )
+            );
+
+        try {
+            if (
+                fs.existsSync(videoPath)
+            ) {
+                fs.unlinkSync(
+                    videoPath
+                );
+            }
+        } catch (fileError) {
+            console.error(
+                "Failed to delete physical video:",
+                fileError.message
+            );
+        }
+
+        /**
+         * Remove uploaded video metadata.
+         */
+        if (lesson.videos) {
+            lesson.videos.uploaded =
+                null;
+        }
+
+        /**
+         * Keep legacy field synchronized.
+         *
+         * IMPORTANT:
+         *
+         * If an external link exists,
+         * the legacy field becomes external.
+         *
+         * Otherwise it becomes none.
+         */
+        if (
+            lesson.videos?.external?.url
+        ) {
+            lesson.video = {
+                type: "external",
+
+                url:
+                    lesson.videos
+                        .external.url,
+
+                filename: "",
+
+                title:
+                    lesson.videos
+                        .external.title ||
+                    "",
+            };
+        } else {
+            lesson.video = {
+                type: "none",
+
+                url: "",
+
+                filename: "",
+
+                title: "",
+            };
+        }
+
+        await course.save();
+
+        await safeRefreshDashboard();
+
+        return res.json({
+            message:
+                "Uploaded video deleted successfully.",
+
+            courseId:
+                course._id,
+
+            moduleId:
+                module._id,
+
+            lessonId:
+                lesson._id,
+        });
+    } catch (error) {
+        console.error(
+            "deleteLessonVideo error:",
+            error
+        );
+
+        return res.status(500).json({
+            message:
+                "Failed to delete uploaded video.",
+            error: error.message,
+        });
+    }
+};
+
+
+/**
+ * ============================================================
+ * DELETE EXTERNAL VIDEO LINK
+ * ============================================================
+ *
+ * Deletes ONLY the external video link.
+ *
+ * An uploaded video is left untouched.
+ */
+exports.deleteExternalVideo = async (
+    req,
+    res
+) => {
+    try {
+        if (req.user.role !== "admin") {
+            return res.status(403).json({
+                message: "Admin only.",
+            });
+        }
+
+        const course =
+            await Course.findById(
+                req.params.courseId
+            );
+
+        if (!course) {
+            return res.status(404).json({
+                message:
+                    "Course not found.",
+            });
+        }
+
+        const {
+            module,
+            lesson,
+        } = findLesson(
+            course,
+            req.params.moduleId,
+            req.params.lessonId
+        );
+
+        if (!module || !lesson) {
+            return res.status(404).json({
+                message:
+                    "Module or lesson not found.",
+            });
+        }
+
+        if (
+            !lesson.videos?.external?.url
+        ) {
+            return res.status(404).json({
+                message:
+                    "No external video link found.",
+            });
+        }
+
+        /**
+         * Remove ONLY the external link.
+         */
+        lesson.videos.external = null;
+
+        /**
+         * Synchronize legacy field.
+         *
+         * If uploaded video still exists,
+         * expose that as the legacy video.
+         */
+        if (
+            lesson.videos?.uploaded?.filename
+        ) {
+            lesson.video = {
+                type: "upload",
+
+                url:
+                    lesson.videos
+                        .uploaded.filename,
+
+                filename:
+                    lesson.videos
+                        .uploaded.filename,
+
+                title:
+                    lesson.videos
+                        .uploaded.title ||
+                    "",
+            };
+        } else {
+            lesson.video = {
+                type: "none",
+
+                url: "",
+
+                filename: "",
+
+                title: "",
+            };
+        }
+
+        await course.save();
+
+        await safeRefreshDashboard();
+
+        return res.json({
+            message:
+                "External video link deleted successfully.",
+        });
+    } catch (error) {
+        console.error(
+            "deleteExternalVideo error:",
+            error
+        );
+
+        return res.status(500).json({
+            message:
+                "Failed to delete external video link.",
+            error: error.message,
+        });
+    }
+};
+
+
+/**
+ * ============================================================
  * UPLOAD LESSON MATERIAL
  * ============================================================
  *
@@ -1627,6 +2100,16 @@ exports.uploadLessonMaterial = async (
     req,
     res
 ) => {
+
+    console.log("======================================");
+    console.log("MATERIAL UPLOAD REQUEST RECEIVED");
+    console.log("Course ID:", req.params.courseId);
+    console.log("Module ID:", req.params.moduleId);
+    console.log("Lesson ID:", req.params.lessonId);
+    console.log("File:", req.file);
+    console.log("Body:", req.body);
+    console.log("======================================");
+
     try {
         if (req.user.role !== "admin") {
             return res.status(403).json({
@@ -1964,6 +2447,311 @@ exports.enrollCourse = async (
     }
 };
 
+/**
+ * ============================================================
+ * COURSE PROGRESSION HELPERS
+ * ============================================================
+ */
+
+/**
+ * Check whether every lesson in a module has been completed.
+ */
+const areModuleLessonsCompleted = (
+    module,
+    enrollment
+) => {
+    const lessons = module.lessons || [];
+
+    if (lessons.length === 0) {
+        return true;
+    }
+
+    const completedLessonIds = new Set(
+        (enrollment.lessonsCompleted || []).map(
+            (item) => String(item.lessonId)
+        )
+    );
+
+    return lessons.every((lesson) =>
+        completedLessonIds.has(
+            String(lesson._id)
+        )
+    );
+};
+
+
+/**
+ * Get the student's assessment record for a module.
+ */
+const getModuleAssessmentRecord = (
+    enrollment,
+    moduleId
+) => {
+    return (
+        enrollment.moduleAssessments || []
+    ).find(
+        (assessment) =>
+            String(assessment.moduleId) ===
+            String(moduleId)
+    );
+};
+
+
+/**
+ * Check whether a module's assignment requirement
+ * has been satisfied.
+ *
+ * If there is no assignment, the requirement is
+ * automatically satisfied.
+ */
+const isModuleAssignmentPassed = (
+    module,
+    enrollment
+) => {
+    if (!module.assignment?.enabled) {
+        return true;
+    }
+
+    const assessment =
+        getModuleAssessmentRecord(
+            enrollment,
+            module._id
+        );
+
+    return assessment?.status === "passed";
+};
+
+
+/**
+ * Check whether all required module assignments
+ * have been passed.
+ */
+const areAllModuleAssignmentsPassed = (
+    modules,
+    enrollment
+) => {
+    return modules.every((module) => {
+        if (!module.assignment?.enabled) {
+            return true;
+        }
+
+        return isModuleAssignmentPassed(
+            module,
+            enrollment
+        );
+    });
+};
+
+/**
+ * ============================================================
+ * LESSON LEARNING REQUIREMENTS
+ * ============================================================
+ *
+ * Determines which learning items must be completed before
+ * the student can mark a lesson as complete.
+ *
+ * Requirements:
+ *
+ * - Every PDF/audio material
+ * - Uploaded video, if present
+ * - External video, if present
+ * ============================================================
+ */
+const getLessonRequirements = (
+    course,
+    lessonId
+) => {
+    const modules = getCourseModules(course);
+
+    for (const module of modules) {
+        const lesson = (module.lessons || []).find(
+            (item) =>
+                String(item._id) ===
+                String(lessonId)
+        );
+
+        if (!lesson) {
+            continue;
+        }
+
+        const materials =
+            (lesson.materials || []).map(
+                (material) => ({
+                    materialId: material._id,
+                    type: material.type,
+                    title:
+                        material.title ||
+                        material.originalName ||
+                        "Course Material",
+                    filename:
+                        material.filename,
+                })
+            );
+
+        const uploadedVideo =
+            lesson.videos?.uploaded?.filename ||
+            (
+                lesson.video?.type === "upload"
+                    ? lesson.video.filename
+                    : ""
+            );
+
+        const externalVideo =
+            lesson.videos?.external?.url ||
+            (
+                lesson.video?.type === "external"
+                    ? lesson.video.url
+                    : ""
+            );
+
+        return {
+            lessonId: lesson._id,
+
+            materials,
+
+            uploadedVideo: Boolean(
+                uploadedVideo
+            ),
+
+            externalVideo: Boolean(
+                externalVideo
+            ),
+
+            totalMaterials:
+                materials.length,
+
+            totalRequired:
+                materials.length +
+                (uploadedVideo ? 1 : 0) +
+                (externalVideo ? 1 : 0),
+        };
+    }
+
+    return null;
+};
+
+
+/**
+ * ============================================================
+ * GET STUDENT LESSON PROGRESS
+ * ============================================================
+ */
+const getLessonProgress = (
+    enrollment,
+    lessonId
+) => {
+    const record =
+        (enrollment.lessonProgress || []).find(
+            (item) =>
+                String(item.lessonId) ===
+                String(lessonId)
+        );
+
+    if (!record) {
+        return {
+            lessonId,
+            materialsCompleted: [],
+            uploadedVideoCompleted: false,
+            uploadedVideoCompletedAt: null,
+            externalVideoCompleted: false,
+            externalVideoCompletedAt: null,
+        };
+    }
+
+    return record;
+};
+
+
+/**
+ * ============================================================
+ * CHECK LESSON REQUIREMENTS
+ * ============================================================
+ *
+ * Returns true only when every required learning item
+ * has been completed.
+ * ============================================================
+ */
+const areLessonRequirementsCompleted = (
+    requirements,
+    progress
+) => {
+    if (!requirements) {
+        return false;
+    }
+
+    /**
+     * Check every PDF/audio material.
+     */
+    const completedMaterialIds =
+        new Set(
+            (progress.materialsCompleted || []).map(
+                (item) =>
+                    String(item.materialId)
+            )
+        );
+
+    const allMaterialsCompleted =
+        requirements.materials.every(
+            (material) =>
+                material.materialId &&
+                completedMaterialIds.has(
+                    String(material.materialId)
+                )
+        );
+
+    /**
+     * Check uploaded video.
+     */
+    const uploadedVideoCompleted =
+        !requirements.uploadedVideo ||
+        progress.uploadedVideoCompleted === true;
+
+    /**
+     * Check external video.
+     */
+    const externalVideoCompleted =
+        !requirements.externalVideo ||
+        progress.externalVideoCompleted === true;
+
+    return (
+        allMaterialsCompleted &&
+        uploadedVideoCompleted &&
+        externalVideoCompleted
+    );
+};
+
+
+/**
+ * ============================================================
+ * FIND LESSON
+ * ============================================================
+ */
+const findLessonById = (
+    course,
+    lessonId
+) => {
+    const modules = getCourseModules(course);
+
+    for (const module of modules) {
+        const lesson = (module.lessons || []).find(
+            (item) =>
+                String(item._id) ===
+                String(lessonId)
+        );
+
+        if (lesson) {
+            return {
+                module,
+                lesson,
+            };
+        }
+    }
+
+    return {
+        module: null,
+        lesson: null,
+    };
+};
 
 /**
  * ============================================================
@@ -1971,6 +2759,19 @@ exports.enrollCourse = async (
  * ============================================================
  *
  * Full materials are only available after payment.
+ *
+ * Progression rules:
+ *
+ * 1. First module is unlocked.
+ * 2. Lessons unlock sequentially.
+ * 3. All lessons in a module must be completed before
+ *    its assignment becomes available.
+ * 4. If a module has an assignment, the assignment must
+ *    be passed before the next module unlocks.
+ * 5. If a module has no assignment, completing its lessons
+ *    is enough to unlock the next module.
+ * 6. Final exam requires all required modules/assignments
+ *    to be completed.
  */
 exports.getCourseContent = async (
     req,
@@ -1984,9 +2785,14 @@ exports.getCourseContent = async (
 
         if (!course) {
             return res.status(404).json({
-                message: "Course not found.",
+                message:
+                    "Course not found.",
             });
         }
+
+        // ----------------------------------------------------
+        // CHECK PAID ENROLLMENT
+        // ----------------------------------------------------
 
         const enrollment =
             await requirePaidEnrollment(
@@ -2001,75 +2807,645 @@ exports.getCourseContent = async (
             });
         }
 
+        // ----------------------------------------------------
+        // GET MODULES
+        // ----------------------------------------------------
+
+        const modules =
+            getCourseModules(course);
+
+        // ----------------------------------------------------
+        // COMPLETED LESSON IDS
+        // ----------------------------------------------------
+
+        const completedLessonIds =
+            new Set(
+                (
+                    enrollment.lessonsCompleted ||
+                    []
+                ).map(
+                    (item) =>
+                        String(
+                            item.lessonId
+                        )
+                )
+            );
+
+        // ----------------------------------------------------
+        // MODULE PROGRESSION
+        // ----------------------------------------------------
+
+        const processedModules = [];
+
+        for (
+            let moduleIndex = 0;
+            moduleIndex < modules.length;
+            moduleIndex++
+        ) {
+            const module =
+                modules[moduleIndex];
+
+            const lessons =
+                module.lessons || [];
+
+            // ------------------------------------------------
+            // ARE ALL LESSONS COMPLETE?
+            // ------------------------------------------------
+
+            const lessonsCompleted =
+                areModuleLessonsCompleted(
+                    module,
+                    enrollment
+                );
+
+            // ------------------------------------------------
+            // ASSIGNMENT
+            // ------------------------------------------------
+
+            const assignmentEnabled =
+                module.assignment?.enabled ===
+                true;
+
+            const assessmentRecord =
+                getModuleAssessmentRecord(
+                    enrollment,
+                    module._id
+                );
+
+            const assignmentStatus =
+                assignmentEnabled
+                    ? assessmentRecord?.status ||
+                      "not_started"
+                    : "not_required";
+
+            // ------------------------------------------------
+            // DETERMINE WHETHER MODULE IS UNLOCKED
+            // ------------------------------------------------
+
+            let moduleUnlocked = false;
+
+            if (moduleIndex === 0) {
+                /**
+                 * First module is always available.
+                 */
+                moduleUnlocked = true;
+            } else {
+                /**
+                 * Previous module controls access
+                 * to this module.
+                 */
+                const previousModule =
+                    modules[
+                        moduleIndex - 1
+                    ];
+
+                const previousLessonsCompleted =
+                    areModuleLessonsCompleted(
+                        previousModule,
+                        enrollment
+                    );
+
+                const previousAssignmentPassed =
+                    isModuleAssignmentPassed(
+                        previousModule,
+                        enrollment
+                    );
+
+                moduleUnlocked =
+                    previousLessonsCompleted &&
+                    previousAssignmentPassed;
+            }
+
+            // ------------------------------------------------
+            // PROCESS LESSONS
+            // ------------------------------------------------
+
+            const processedLessons =
+                lessons.map(
+                    (
+                        lesson,
+                        lessonIndex
+                    ) => {
+                        const completed =
+                            completedLessonIds.has(
+                                String(
+                                    lesson._id
+                                )
+                            );
+
+                        let lessonUnlocked =
+                            false;
+
+                        if (
+                            !moduleUnlocked
+                        ) {
+                            lessonUnlocked =
+                                false;
+                        } else if (
+                            lessonIndex === 0
+                        ) {
+                            /**
+                             * First lesson of an
+                             * unlocked module.
+                             */
+                            lessonUnlocked =
+                                true;
+                        } else {
+                            /**
+                             * Every other lesson requires
+                             * the previous lesson to be
+                             * completed.
+                             */
+                            const previousLesson =
+                                lessons[
+                                    lessonIndex -
+                                        1
+                                ];
+
+                            lessonUnlocked =
+                                completedLessonIds.has(
+                                    String(
+                                        previousLesson._id
+                                    )
+                                );
+                        }
+
+                        const lessonProgress =
+                            getLessonProgress(
+                                enrollment,
+                                lesson._id
+                            );
+
+                        const lessonRequirements =
+                            getLessonRequirements(
+                                course,
+                                lesson._id
+                            );
+
+                        const learningItemsCompleted =
+                            areLessonRequirementsCompleted(
+                                lessonRequirements,
+                                lessonProgress
+                            );
+
+                        return {
+                            _id:
+                                lesson._id,
+
+                            title:
+                                lesson.title,
+
+                            description:
+                                lesson.description,
+
+                            duration:
+                                lesson.duration,
+
+                            completed,
+
+                            learningItemsCompleted,
+
+                            learningProgress:
+                                lessonProgress,
+
+                            learningRequirements:
+                                lessonRequirements,
+
+                            unlocked:
+                                lessonUnlocked,
+
+                            materials:
+                                lesson.materials ||
+                                [],
+
+                            videos:
+                                lesson.videos || {
+                                    uploaded:
+                                        null,
+
+                                    external:
+                                        null,
+                                },
+
+                            /**
+                             * Legacy video support.
+                             */
+                            video:
+                                lesson.video || {
+                                    type: "none",
+
+                                    url: "",
+
+                                    filename:
+                                        "",
+
+                                    title: "",
+                                },
+                        };
+                    }
+                );
+
+            // ------------------------------------------------
+            // ASSIGNMENT AVAILABILITY
+            // ------------------------------------------------
+
+            const assignmentAvailable =
+                assignmentEnabled &&
+                moduleUnlocked &&
+                lessonsCompleted &&
+                assignmentStatus !==
+                    "passed";
+
+            // ------------------------------------------------
+            // MODULE COMPLETION
+            // ------------------------------------------------
+
+            const moduleCompleted =
+                lessonsCompleted &&
+                (
+                    !assignmentEnabled ||
+                    assignmentStatus ===
+                        "passed"
+                );
+
+            // ------------------------------------------------
+            // SAFE ASSIGNMENT FOR STUDENT
+            // ------------------------------------------------
+
+            const assignment =
+                module.assignment
+                    ? {
+                          enabled:
+                              module.assignment
+                                  .enabled,
+
+                          title:
+                              module.assignment
+                                  .title,
+
+                          instructions:
+                              module.assignment
+                                  .instructions,
+
+                          passMark:
+                              module.assignment
+                                  .passMark,
+
+                          questions:
+                              sanitizeQuestionsForStudent(
+                                  module
+                                      .assignment
+                                      .questions
+                              ),
+                      }
+                    : null;
+
+            processedModules.push({
+                _id: module._id,
+
+                title: module.title,
+
+                description:
+                    module.description,
+
+                order: module.order,
+
+                lessons:
+                    processedLessons,
+
+                assignment,
+
+                /**
+                 * ------------------------------------------
+                 * PROGRESSION INFORMATION
+                 * ------------------------------------------
+                 */
+                progression: {
+                    moduleIndex,
+
+                    unlocked:
+                        moduleUnlocked,
+
+                    lessonsCompleted,
+
+                    lessonsTotal:
+                        lessons.length,
+
+                    assignmentEnabled,
+
+                    assignmentStatus,
+
+                    assignmentAvailable,
+
+                    moduleCompleted,
+
+                    attempts:
+                        assessmentRecord?.attempts ||
+                        0,
+
+                    percentage:
+                        assessmentRecord?.percentage ||
+                        0,
+                },
+            });
+        }
+
+        // ----------------------------------------------------
+        // CHECK ALL MODULES
+        // ----------------------------------------------------
+
+        const allModulesCompleted =
+            processedModules.length > 0 &&
+            processedModules.every(
+                (module) =>
+                    module.progression
+                        .moduleCompleted
+            );
+
+        // ----------------------------------------------------
+        // FINAL EXAM
+        // ----------------------------------------------------
+
+        const finalExamEnabled =
+            course.finalExam?.enabled ===
+            true;
+
+        const finalExamStatus =
+            enrollment.finalExamStatus ||
+            "not_started";
+
+        const finalExamUnlocked =
+            finalExamEnabled &&
+            allModulesCompleted;
+
+        // ----------------------------------------------------
+        // COURSE COMPLETION
+        // ----------------------------------------------------
+
+        /**
+         * IMPORTANT:
+         *
+         * We no longer mark a course complete merely
+         * because lesson progress reached 100%.
+         *
+         * If there is a final exam, the final exam must
+         * be passed.
+         *
+         * If there is no final exam, all required modules
+         * must be completed.
+         */
+        const courseCompleted =
+            finalExamEnabled
+                ? finalExamStatus ===
+                  "passed"
+                : allModulesCompleted;
+
+        // ----------------------------------------------------
+        // UPDATE ENROLLMENT COMPLETION
+        // ----------------------------------------------------
+
+        if (
+            enrollment.completed !==
+            courseCompleted
+        ) {
+            enrollment.completed =
+                courseCompleted;
+
+            enrollment.completedAt =
+                courseCompleted
+                    ? new Date()
+                    : null;
+        }
+
         enrollment.lastAccessed =
             new Date();
 
         await enrollment.save();
 
+        // ----------------------------------------------------
+        // LESSON PROGRESS
+        // ----------------------------------------------------
+
+        const totalLessons =
+            modules.reduce(
+                (total, module) =>
+                    total +
+                    (
+                        module.lessons ||
+                        []
+                    ).length,
+                0
+            );
+
+        const completedLessons =
+            enrollment.lessonsCompleted
+                ?.length || 0;
+
+        const progress =
+            totalLessons > 0
+                ? Math.min(
+                      100,
+                      Math.round(
+                          (
+                              completedLessons /
+                              totalLessons
+                          ) * 100
+                      )
+                  )
+                : 0;
+
+        /**
+         * Keep the stored progress synchronized.
+         */
+        if (
+            enrollment.progress !==
+            progress
+        ) {
+            enrollment.progress =
+                progress;
+
+            await enrollment.save();
+        }
+
+        // ----------------------------------------------------
+        // RESPONSE
+        // ----------------------------------------------------
+
         return res.json({
             course: {
                 _id: course._id,
+
                 title: course.title,
+
                 description:
                     course.description,
+
                 shortDescription:
                     course.shortDescription,
-                category: course.category,
-                level: course.level,
-                duration: course.duration,
+
+                category:
+                    course.category,
+
+                level:
+                    course.level,
+
+                duration:
+                    course.duration,
+
                 certificate:
                     course.certificate,
+
                 passMark:
                     course.passMark,
             },
 
             modules:
-                sanitizeCourseContentForStudent(
-                    course
-                ),
+                processedModules,
 
-            finalExam: course.finalExam
-                ? {
-                      enabled:
-                          course.finalExam
-                              .enabled,
+            // ------------------------------------------------
+            // FINAL EXAM
+            // ------------------------------------------------
 
-                      title:
-                          course.finalExam
-                              .title,
+            finalExam:
+                course.finalExam
+                    ? {
+                          enabled:
+                              course
+                                  .finalExam
+                                  .enabled,
 
-                      instructions:
-                          course.finalExam
-                              .instructions,
+                          title:
+                              course
+                                  .finalExam
+                                  .title,
 
-                      durationMinutes:
-                          course.finalExam
-                              .durationMinutes,
+                          instructions:
+                              course
+                                  .finalExam
+                                  .instructions,
 
-                      passMark:
-                          course.finalExam
-                              .passMark,
+                          durationMinutes:
+                              course
+                                  .finalExam
+                                  .durationMinutes,
 
-                      questions:
-                          sanitizeQuestionsForStudent(
-                              course.finalExam
-                                  .questions
-                          ),
-                  }
-                : null,
+                          passMark:
+                              course
+                                  .finalExam
+                                  .passMark,
+
+                          questions:
+                              sanitizeQuestionsForStudent(
+                                  course
+                                      .finalExam
+                                      .questions
+                              ),
+
+                          progression: {
+                              enabled:
+                                  finalExamEnabled,
+
+                              unlocked:
+                                  finalExamUnlocked,
+
+                              status:
+                                  finalExamStatus,
+
+                              attempts:
+                                  enrollment
+                                      .finalExamAttempts ||
+                                  0,
+
+                              percentage:
+                                  enrollment
+                                      .finalExamPercentage ||
+                                  0,
+
+                              passed:
+                                  finalExamStatus ===
+                                  "passed",
+                          },
+                      }
+                    : null,
+
+            // ------------------------------------------------
+            // ENROLLMENT
+            // ------------------------------------------------
 
             enrollment: {
-                _id: enrollment._id,
+                _id:
+                    enrollment._id,
+
                 progress:
                     enrollment.progress,
+
                 completed:
                     enrollment.completed,
+
+                completedAt:
+                    enrollment.completedAt,
+
+                lessonsCompleted:
+                    enrollment
+                        .lessonsCompleted ||
+                    [],
+
+                lessonProgress:
+                    enrollment
+                        .lessonProgress ||
+                    [],
+
+                moduleAssessments:
+                    enrollment
+                        .moduleAssessments ||
+                    [],
+
+                finalExamStatus:
+                    enrollment
+                        .finalExamStatus ||
+                    "not_started",
+
+                finalExamAttempts:
+                    enrollment
+                        .finalExamAttempts ||
+                    0,
+
+                finalExamPercentage:
+                    enrollment
+                        .finalExamPercentage ||
+                    0,
+
                 certificateIssued:
-                    enrollment.certificateIssued,
+                    enrollment
+                        .certificateIssued,
+
+                certificateNumber:
+                    enrollment
+                        .certificateNumber ||
+                    null,
+
                 lastAccessed:
-                    enrollment.lastAccessed,
+                    enrollment
+                        .lastAccessed,
+            },
+
+            // ------------------------------------------------
+            // OVERALL PROGRESSION
+            // ------------------------------------------------
+
+            progression: {
+                allModulesCompleted,
+
+                finalExamEnabled,
+
+                finalExamUnlocked,
+
+                finalExamStatus,
+
+                courseCompleted,
             },
         });
+
     } catch (error) {
         console.error(
             "getCourseContent error:",
@@ -2153,19 +3529,23 @@ exports.streamVideo = async (
                 const lesson of module.lessons ||
                 []
             ) {
-                if (
-                    lesson.video &&
-                    lesson.video.type ===
-                        "upload" &&
+                const uploadedFilename =
+                    lesson.videos?.uploaded
+                        ?.filename ||
                     (
-                        lesson.video.filename ===
-                            filename ||
-                        lesson.video.url ===
-                            filename
-                    )
+                        lesson.video?.type ===
+                        "upload"
+                            ? lesson.video.filename
+                            : ""
+                    );
+
+                if (
+                    uploadedFilename ===
+                    filename
                 ) {
                     videoBelongsToCourse =
                         true;
+
                     break;
                 }
             }
@@ -2504,13 +3884,411 @@ exports.streamMaterial = async (
     }
 };
 
+/**
+ * ============================================================
+ * COMPLETE LESSON MATERIAL
+ * ============================================================
+ *
+ * Records that a student has completed a PDF or audio
+ * learning material.
+ *
+ * The student must have paid for the course.
+ * ============================================================
+ */
+exports.completeLessonMaterial = async (
+    req,
+    res
+) => {
+    try {
+        const {
+            lessonId,
+            materialId,
+        } = req.body;
+
+        if (!lessonId || !materialId) {
+            return res.status(400).json({
+                message:
+                    "Lesson ID and material ID are required.",
+            });
+        }
+
+        const course =
+            await Course.findById(
+                req.params.courseId
+            );
+
+        if (!course) {
+            return res.status(404).json({
+                message:
+                    "Course not found.",
+            });
+        }
+
+        const enrollment =
+            await requirePaidEnrollment(
+                req.user._id,
+                course._id
+            );
+
+        if (!enrollment) {
+            return res.status(403).json({
+                message:
+                    "Payment required.",
+            });
+        }
+
+        const { lesson } =
+            findLessonById(
+                course,
+                lessonId
+            );
+
+        if (!lesson) {
+            return res.status(404).json({
+                message:
+                    "Lesson does not belong to this course.",
+            });
+        }
+
+        const material =
+            (lesson.materials || []).find(
+                (item) =>
+                    String(item._id) ===
+                    String(materialId)
+            );
+
+        if (!material) {
+            return res.status(404).json({
+                message:
+                    "Material does not belong to this lesson.",
+            });
+        }
+
+        /**
+         * Find or create lesson progress record.
+         */
+        let lessonProgress =
+            enrollment.lessonProgress.find(
+                (item) =>
+                    String(item.lessonId) ===
+                    String(lessonId)
+            );
+
+        if (!lessonProgress) {
+            enrollment.lessonProgress.push({
+                lessonId: lesson._id,
+                materialsCompleted: [],
+                uploadedVideoCompleted: false,
+                externalVideoCompleted: false,
+            });
+
+            lessonProgress =
+                enrollment.lessonProgress[
+                    enrollment.lessonProgress.length - 1
+                ];
+        }
+
+        /**
+         * Do not create duplicate completion records.
+         */
+        const alreadyCompleted =
+            lessonProgress.materialsCompleted.some(
+                (item) =>
+                    String(item.materialId) ===
+                    String(materialId)
+            );
+
+        if (!alreadyCompleted) {
+            lessonProgress.materialsCompleted.push({
+                materialId: material._id,
+                completedAt: new Date(),
+            });
+        }
+
+        enrollment.lastAccessed =
+            new Date();
+
+        await enrollment.save();
+
+        const requirements =
+            getLessonRequirements(
+                course,
+                lessonId
+            );
+
+        const updatedProgress =
+            getLessonProgress(
+                enrollment,
+                lessonId
+            );
+
+        const allCompleted =
+            areLessonRequirementsCompleted(
+                requirements,
+                updatedProgress
+            );
+
+        return res.json({
+            message:
+                "Learning material marked as completed.",
+
+            lessonId,
+
+            materialId,
+
+            allLearningItemsCompleted:
+                allCompleted,
+
+            lessonProgress:
+                updatedProgress,
+        });
+    } catch (error) {
+        console.error(
+            "completeLessonMaterial error:",
+            error
+        );
+
+        return res.status(500).json({
+            message:
+                "Failed to update material progress.",
+            error: error.message,
+        });
+    }
+};
+
+
+/**
+ * ============================================================
+ * COMPLETE LESSON VIDEO
+ * ============================================================
+ *
+ * Records completion of either:
+ *
+ * - uploaded video
+ * - external video
+ *
+ * The student must have paid for the course.
+ * ============================================================
+ */
+exports.completeLessonVideo = async (
+    req,
+    res
+) => {
+    try {
+        const {
+            lessonId,
+            videoType,
+        } = req.body;
+
+        if (!lessonId || !videoType) {
+            return res.status(400).json({
+                message:
+                    "Lesson ID and video type are required.",
+            });
+        }
+
+        if (
+            ![
+                "uploaded",
+                "external",
+            ].includes(videoType)
+        ) {
+            return res.status(400).json({
+                message:
+                    "Invalid video type.",
+            });
+        }
+
+        const course =
+            await Course.findById(
+                req.params.courseId
+            );
+
+        if (!course) {
+            return res.status(404).json({
+                message:
+                    "Course not found.",
+            });
+        }
+
+        const enrollment =
+            await requirePaidEnrollment(
+                req.user._id,
+                course._id
+            );
+
+        if (!enrollment) {
+            return res.status(403).json({
+                message:
+                    "Payment required.",
+            });
+        }
+
+        const { lesson } =
+            findLessonById(
+                course,
+                lessonId
+            );
+
+        if (!lesson) {
+            return res.status(404).json({
+                message:
+                    "Lesson does not belong to this course.",
+            });
+        }
+
+        /**
+         * Verify that the requested video actually exists.
+         */
+        const hasUploadedVideo =
+            Boolean(
+                lesson.videos?.uploaded?.filename ||
+                (
+                    lesson.video?.type === "upload" &&
+                    lesson.video?.filename
+                )
+            );
+
+        const hasExternalVideo =
+            Boolean(
+                lesson.videos?.external?.url ||
+                (
+                    lesson.video?.type === "external" &&
+                    lesson.video?.url
+                )
+            );
+
+        if (
+            videoType === "uploaded" &&
+            !hasUploadedVideo
+        ) {
+            return res.status(404).json({
+                message:
+                    "This lesson does not have an uploaded video.",
+            });
+        }
+
+        if (
+            videoType === "external" &&
+            !hasExternalVideo
+        ) {
+            return res.status(404).json({
+                message:
+                    "This lesson does not have an external video.",
+            });
+        }
+
+        /**
+         * Find or create lesson progress.
+         */
+        let lessonProgress =
+            enrollment.lessonProgress.find(
+                (item) =>
+                    String(item.lessonId) ===
+                    String(lessonId)
+            );
+
+        if (!lessonProgress) {
+            enrollment.lessonProgress.push({
+                lessonId: lesson._id,
+                materialsCompleted: [],
+                uploadedVideoCompleted: false,
+                externalVideoCompleted: false,
+            });
+
+            lessonProgress =
+                enrollment.lessonProgress[
+                    enrollment.lessonProgress.length - 1
+                ];
+        }
+
+        /**
+         * Record video completion.
+         */
+        if (videoType === "uploaded") {
+            lessonProgress.uploadedVideoCompleted =
+                true;
+
+            lessonProgress.uploadedVideoCompletedAt =
+                new Date();
+        }
+
+        if (videoType === "external") {
+            lessonProgress.externalVideoCompleted =
+                true;
+
+            lessonProgress.externalVideoCompletedAt =
+                new Date();
+        }
+
+        enrollment.lastAccessed =
+            new Date();
+
+        await enrollment.save();
+
+        const requirements =
+            getLessonRequirements(
+                course,
+                lessonId
+            );
+
+        const updatedProgress =
+            getLessonProgress(
+                enrollment,
+                lessonId
+            );
+
+        const allCompleted =
+            areLessonRequirementsCompleted(
+                requirements,
+                updatedProgress
+            );
+
+        return res.json({
+            message:
+                "Video marked as completed.",
+
+            lessonId,
+
+            videoType,
+
+            allLearningItemsCompleted:
+                allCompleted,
+
+            lessonProgress:
+                updatedProgress,
+        });
+    } catch (error) {
+        console.error(
+            "completeLessonVideo error:",
+            error
+        );
+
+        return res.status(500).json({
+            message:
+                "Failed to update video progress.",
+            error: error.message,
+        });
+    }
+};
+
 
 /**
  * ============================================================
  * UPDATE PROGRESS
  * ============================================================
  *
- * Progress now counts lessons across ALL modules.
+ * A lesson can only be marked as completed after ALL required
+ * learning items have been completed:
+ *
+ * - PDF materials
+ * - Audio materials
+ * - Uploaded video
+ * - External video
+ *
+ * The validation is performed on the backend so that lesson
+ * progression cannot be bypassed from the mobile application.
+ * ============================================================
  */
 exports.updateProgress = async (
     req,
@@ -2528,6 +4306,12 @@ exports.updateProgress = async (
             });
         }
 
+        /**
+         * ----------------------------------------------------
+         * FIND COURSE
+         * ----------------------------------------------------
+         */
+
         const course =
             await Course.findById(
                 req.params.courseId
@@ -2535,9 +4319,16 @@ exports.updateProgress = async (
 
         if (!course) {
             return res.status(404).json({
-                message: "Course not found.",
+                message:
+                    "Course not found.",
             });
         }
+
+        /**
+         * ----------------------------------------------------
+         * REQUIRE PAID ENROLLMENT
+         * ----------------------------------------------------
+         */
 
         const enrollment =
             await requirePaidEnrollment(
@@ -2552,32 +4343,20 @@ exports.updateProgress = async (
             });
         }
 
-        const modules =
-            getCourseModules(course);
-
         /**
-         * Verify lesson belongs to course.
+         * ----------------------------------------------------
+         * FIND LESSON
+         * ----------------------------------------------------
          */
-        let lessonExists = false;
 
-        for (
-            const module of modules
-        ) {
-            if (
-                (module.lessons || []).some(
-                    (lesson) =>
-                        String(
-                            lesson._id
-                        ) ===
-                        String(lessonId)
-                )
-            ) {
-                lessonExists = true;
-                break;
-            }
-        }
+        const {
+            lesson,
+        } = findLessonById(
+            course,
+            lessonId
+        );
 
-        if (!lessonExists) {
+        if (!lesson) {
             return res.status(404).json({
                 message:
                     "Lesson does not belong to this course.",
@@ -2585,30 +4364,89 @@ exports.updateProgress = async (
         }
 
         /**
-         * Add lesson only once.
+         * ----------------------------------------------------
+         * CHECK ALL LEARNING REQUIREMENTS
+         * ----------------------------------------------------
+         *
+         * A lesson cannot be completed until every required
+         * material and video has been completed.
          */
+
+        const requirements =
+            getLessonRequirements(
+                course,
+                lessonId
+            );
+
+        const lessonProgress =
+            getLessonProgress(
+                enrollment,
+                lessonId
+            );
+
+        const allLearningItemsCompleted =
+            areLessonRequirementsCompleted(
+                requirements,
+                lessonProgress
+            );
+
+        if (!allLearningItemsCompleted) {
+            return res.status(400).json({
+                message:
+                    "Please complete all required learning materials and videos before completing this lesson.",
+
+                lessonCompleted:
+                    false,
+
+                allLearningItemsCompleted:
+                    false,
+
+                lessonProgress:
+                    lessonProgress,
+
+                learningRequirements:
+                    requirements,
+            });
+        }
+
+        /**
+         * ----------------------------------------------------
+         * ADD LESSON TO COMPLETED LESSONS
+         * ----------------------------------------------------
+         */
+
         const alreadyCompleted =
             enrollment.lessonsCompleted.some(
                 (item) =>
-                    String(
-                        item.lessonId
-                    ) ===
+                    String(item.lessonId) ===
                     String(lessonId)
             );
 
         if (!alreadyCompleted) {
-            enrollment.lessonsCompleted.push(
-                {
-                    lessonId,
-                    completedAt:
-                        new Date(),
-                }
-            );
+            enrollment.lessonsCompleted.push({
+                lessonId:
+                    lesson._id,
+
+                completedAt:
+                    new Date(),
+            });
         }
+
+        /**
+         * ----------------------------------------------------
+         * CALCULATE COURSE LESSON PROGRESS
+         * ----------------------------------------------------
+         */
+
+        const modules =
+            getCourseModules(course);
 
         const totalLessons =
             modules.reduce(
-                (total, module) =>
+                (
+                    total,
+                    module
+                ) =>
                     total +
                     (
                         module.lessons ||
@@ -2618,15 +4456,15 @@ exports.updateProgress = async (
             );
 
         const completedLessons =
-            enrollment
-                .lessonsCompleted.length;
+            enrollment.lessonsCompleted.length;
 
         const progress =
             totalLessons > 0
                 ? Math.round(
-                      (completedLessons /
-                          totalLessons) *
-                          100
+                      (
+                          completedLessons /
+                          totalLessons
+                      ) * 100
                   )
                 : 0;
 
@@ -2636,32 +4474,35 @@ exports.updateProgress = async (
                 100
             );
 
-        if (
-            enrollment.progress >=
-            100
-        ) {
-            enrollment.completed =
-                true;
-
-            enrollment.completedAt =
-                new Date();
-
-            if (
-                !enrollment.certificateIssued
-            ) {
-                enrollment.certificateIssued =
-                    false;
-            }
-        }
+        /**
+         * ----------------------------------------------------
+         * COURSE COMPLETION
+         * ----------------------------------------------------
+         *
+         * Completing all lessons does NOT automatically issue
+         * a certificate or complete the course.
+         *
+         * Module assignments and the final exam continue to
+         * control actual course completion.
+         */
 
         enrollment.lastAccessed =
             new Date();
 
         await enrollment.save();
 
+        /**
+         * ----------------------------------------------------
+         * RESPONSE
+         * ----------------------------------------------------
+         */
+
         return res.json({
             message:
-                "Progress updated successfully.",
+                "Lesson completed successfully.",
+
+            lessonId:
+                lesson._id,
 
             progress:
                 enrollment.progress,
@@ -2669,9 +4510,21 @@ exports.updateProgress = async (
             completed:
                 enrollment.completed,
 
+            lessonCompleted:
+                true,
+
+            allLearningItemsCompleted:
+                true,
+
             totalLessons,
 
             completedLessons,
+
+            lessonProgress:
+                getLessonProgress(
+                    enrollment,
+                    lessonId
+                ),
         });
     } catch (error) {
         console.error(
@@ -2682,11 +4535,105 @@ exports.updateProgress = async (
         return res.status(500).json({
             message:
                 "Failed to update progress.",
-            error: error.message,
+
+            error:
+                error.message,
         });
     }
 };
 
+/**
+ * ============================================================
+ * CERTIFICATE ELIGIBILITY
+ * ============================================================
+ *
+ * A student is eligible for a certificate only when:
+ *
+ * 1. They have a paid enrollment.
+ * 2. Every module's lessons are completed.
+ * 3. Every enabled module assignment is passed.
+ * 4. If a final exam is enabled, it is passed.
+ */
+const checkCertificateEligibility = (
+    course,
+    enrollment
+) => {
+    const modules =
+        getCourseModules(course);
+
+    // --------------------------------------------------------
+    // CHECK ALL MODULES
+    // --------------------------------------------------------
+
+    for (const module of modules) {
+        const lessons =
+            module.lessons || [];
+
+        const lessonsCompleted =
+            areModuleLessonsCompleted(
+                module,
+                enrollment
+            );
+
+        if (!lessonsCompleted) {
+            return {
+                eligible: false,
+                reason:
+                    `All lessons in "${module.title}" must be completed.`,
+            };
+        }
+
+        // ----------------------------------------------------
+        // CHECK MODULE ASSIGNMENT
+        // ----------------------------------------------------
+
+        if (
+            module.assignment?.enabled
+        ) {
+            const assessment =
+                getModuleAssessmentRecord(
+                    enrollment,
+                    module._id
+                );
+
+            if (
+                !assessment ||
+                assessment.status !==
+                    "passed"
+            ) {
+                return {
+                    eligible: false,
+                    reason:
+                        `The assignment for "${module.title}" must be passed.`,
+                };
+            }
+        }
+    }
+
+    // --------------------------------------------------------
+    // CHECK FINAL EXAM
+    // --------------------------------------------------------
+
+    if (
+        course.finalExam?.enabled
+    ) {
+        if (
+            enrollment.finalExamStatus !==
+            "passed"
+        ) {
+            return {
+                eligible: false,
+                reason:
+                    "The final exam must be passed before a certificate can be issued.",
+            };
+        }
+    }
+
+    return {
+        eligible: true,
+        reason: null,
+    };
+};
 
 /**
  * ============================================================
@@ -2705,9 +4652,14 @@ exports.issueCertificate = async (
 
         if (!course) {
             return res.status(404).json({
-                message: "Course not found.",
+                message:
+                    "Course not found.",
             });
         }
+
+        // ----------------------------------------------------
+        // FIND PAID ENROLLMENT
+        // ----------------------------------------------------
 
         const enrollment =
             await Enrollment.findOne({
@@ -2726,23 +4678,50 @@ exports.issueCertificate = async (
             });
         }
 
-        if (
-            !enrollment.completed
-        ) {
-            return res.status(400).json({
-                message:
-                    "Complete the course before receiving a certificate.",
-            });
-        }
+        // ----------------------------------------------------
+        // CHECK WHETHER COURSE ISSUES CERTIFICATES
+        // ----------------------------------------------------
 
-        if (
-            !course.certificate
-        ) {
+        if (!course.certificate) {
             return res.status(400).json({
                 message:
                     "This course does not issue a certificate.",
             });
         }
+
+        // ----------------------------------------------------
+        // CHECK ACTUAL COURSE REQUIREMENTS
+        // ----------------------------------------------------
+
+        const eligibility =
+            checkCertificateEligibility(
+                course,
+                enrollment
+            );
+
+        if (!eligibility.eligible) {
+            return res.status(400).json({
+                message:
+                    eligibility.reason,
+            });
+        }
+
+        // ----------------------------------------------------
+        // MARK COURSE COMPLETE
+        // ----------------------------------------------------
+
+        if (!enrollment.completed) {
+            enrollment.completed =
+                true;
+
+            enrollment.completedAt =
+                enrollment.completedAt ||
+                new Date();
+        }
+
+        // ----------------------------------------------------
+        // GENERATE CERTIFICATE NUMBER
+        // ----------------------------------------------------
 
         if (
             !enrollment.certificateNumber
@@ -2751,12 +4730,16 @@ exports.issueCertificate = async (
                 `NA-${Date.now()}-${Math.floor(
                     Math.random() * 100000
                 )}`;
-
-            enrollment.certificateIssued =
-                true;
-
-            await enrollment.save();
         }
+
+        enrollment.certificateIssued =
+            true;
+
+        await enrollment.save();
+
+        // ----------------------------------------------------
+        // RESPONSE
+        // ----------------------------------------------------
 
         return res.json({
             message:
@@ -2767,6 +4750,12 @@ exports.issueCertificate = async (
 
             certificateIssued:
                 enrollment.certificateIssued,
+
+            completed:
+                enrollment.completed,
+
+            completedAt:
+                enrollment.completedAt,
         });
     } catch (error) {
         console.error(
@@ -2777,7 +4766,9 @@ exports.issueCertificate = async (
         return res.status(500).json({
             message:
                 "Failed to issue certificate.",
-            error: error.message,
+
+            error:
+                error.message,
         });
     }
 };
@@ -2800,9 +4791,14 @@ exports.downloadCertificate = async (
 
         if (!course) {
             return res.status(404).json({
-                message: "Course not found.",
+                message:
+                    "Course not found.",
             });
         }
+
+        // ----------------------------------------------------
+        // FIND PAID ENROLLMENT
+        // ----------------------------------------------------
 
         const enrollment =
             await Enrollment.findOne({
@@ -2821,23 +4817,37 @@ exports.downloadCertificate = async (
             });
         }
 
-        if (
-            !enrollment.completed
-        ) {
-            return res.status(400).json({
-                message:
-                    "Complete the course before downloading the certificate.",
-            });
-        }
+        // ----------------------------------------------------
+        // CHECK CERTIFICATE SETTING
+        // ----------------------------------------------------
 
-        if (
-            !course.certificate
-        ) {
+        if (!course.certificate) {
             return res.status(400).json({
                 message:
                     "This course does not issue a certificate.",
             });
         }
+
+        // ----------------------------------------------------
+        // VERIFY COURSE REQUIREMENTS
+        // ----------------------------------------------------
+
+        const eligibility =
+            checkCertificateEligibility(
+                course,
+                enrollment
+            );
+
+        if (!eligibility.eligible) {
+            return res.status(400).json({
+                message:
+                    eligibility.reason,
+            });
+        }
+
+        // ----------------------------------------------------
+        // GENERATE CERTIFICATE NUMBER
+        // ----------------------------------------------------
 
         if (
             !enrollment.certificateNumber
@@ -2850,19 +4860,38 @@ exports.downloadCertificate = async (
             enrollment.certificateIssued =
                 true;
 
+            enrollment.completed =
+                true;
+
+            enrollment.completedAt =
+                enrollment.completedAt ||
+                new Date();
+
+            await enrollment.save();
+        } else if (
+            !enrollment.certificateIssued
+        ) {
+            enrollment.certificateIssued =
+                true;
+
             await enrollment.save();
         }
 
         const certificateNumber =
             enrollment.certificateNumber;
 
+        // ----------------------------------------------------
+        // STUDENT NAME
+        // ----------------------------------------------------
+
         const studentName =
             enrollment.student?.name ||
             "Student";
 
-        /**
-         * Generate QR code.
-         */
+        // ----------------------------------------------------
+        // QR CODE
+        // ----------------------------------------------------
+
         const verificationURL =
             `https://nakkyacademy.co.za/verify-certificate/${certificateNumber}`;
 
@@ -2871,10 +4900,16 @@ exports.downloadCertificate = async (
                 verificationURL
             );
 
+        // ----------------------------------------------------
+        // CREATE PDF
+        // ----------------------------------------------------
+
         const doc =
             new PDFDocument({
                 size: "A4",
+
                 layout: "landscape",
+
                 margin: 50,
             });
 
@@ -2890,9 +4925,10 @@ exports.downloadCertificate = async (
 
         doc.pipe(res);
 
-        /**
-         * Certificate heading.
-         */
+        // ----------------------------------------------------
+        // CERTIFICATE HEADING
+        // ----------------------------------------------------
+
         doc
             .fontSize(30)
             .text(
@@ -2981,9 +5017,10 @@ exports.downloadCertificate = async (
                 }
             );
 
-        /**
-         * QR code.
-         */
+        // ----------------------------------------------------
+        // QR CODE
+        // ----------------------------------------------------
+
         doc.image(
             qrCode,
             650,
@@ -3001,6 +5038,7 @@ exports.downloadCertificate = async (
                 515,
                 {
                     width: 140,
+
                     align: "center",
                 }
             );
@@ -3016,7 +5054,9 @@ exports.downloadCertificate = async (
             return res.status(500).json({
                 message:
                     "Failed to generate certificate.",
-                error: error.message,
+
+                error:
+                    error.message,
             });
         }
     }

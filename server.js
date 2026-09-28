@@ -62,6 +62,7 @@ const recommendationRoutes = require("./routes/recommendationRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
 const searchRoutes = require("./routes/searchRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
+const assessmentRoutes = require("./routes/assessmentRoutes");
 
 
 
@@ -92,6 +93,8 @@ app.use("/api/search", searchRoutes);
 app.use("/api/messages", messageRoutes);
 
 app.use("/api/notifications", notificationRoutes);
+
+app.use("/api", assessmentRoutes);
 
 
 

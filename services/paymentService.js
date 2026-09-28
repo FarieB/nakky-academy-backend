@@ -708,7 +708,16 @@ const createCoursePayment = async (
                     existingPayment.paymentReference,
 
                 status:
-                    existingPayment.status
+                    existingPayment.status,
+
+                proofOfPayment:
+                    existingPayment.proofOfPayment,
+
+                proofSubmittedAt:
+                    existingPayment.proofSubmittedAt,
+
+                proofStatus:
+                    existingPayment.proofStatus
             },
 
             bankingDetails:
@@ -752,7 +761,10 @@ const createCoursePayment = async (
             paymentReference,
 
             status:
-                "pending"
+                "pending",
+
+            proofStatus:
+                "not_submitted"
 
         });
 
@@ -802,7 +814,16 @@ const createCoursePayment = async (
                 payment.paymentReference,
 
             status:
-                payment.status
+                payment.status,
+
+            proofOfPayment:
+                payment.proofOfPayment,
+
+            proofSubmittedAt:
+                payment.proofSubmittedAt,
+
+            proofStatus:
+                payment.proofStatus
         },
 
         bankingDetails:
@@ -1028,6 +1049,150 @@ const rejectPayment = async (
 
 };
 
+// =====================================================
+// GET EXISTING STUDENT COURSE PAYMENT
+// =====================================================
+
+const getCoursePayment = async (
+    user,
+    courseId
+) => {
+
+    // ==========================================
+    // FIND COURSE
+    // ==========================================
+
+    const course =
+        await Course.findById(courseId);
+
+    if (!course) {
+        throw new Error(
+            "Course not found."
+        );
+    }
+
+
+    // ==========================================
+    // FIND STUDENT ENROLLMENT
+    // ==========================================
+
+    const enrollment =
+        await Enrollment.findOne({
+            student: user._id,
+            course: course._id
+        });
+
+
+    // ==========================================
+    // NO PAYMENT / ENROLLMENT YET
+    // ==========================================
+
+    if (!enrollment) {
+
+        return {
+            exists: false,
+
+            course: {
+                _id: course._id,
+                title: course.title,
+                price: course.price
+            },
+
+            enrollment: null,
+
+            payment: null,
+
+            bankingDetails: BANKING_DETAILS
+        };
+
+    }
+
+
+    // ==========================================
+    // FIND PAYMENT
+    // ==========================================
+
+    let payment = null;
+
+    if (enrollment.paymentReference) {
+
+        payment =
+            await Payment.findById(
+                enrollment.paymentReference
+            );
+
+    }
+
+
+    // ==========================================
+    // FALLBACK:
+    // FIND PAYMENT THROUGH ENROLLMENT
+    // ==========================================
+
+    if (!payment) {
+
+        payment =
+            await Payment.findOne({
+                user: user._id,
+                type: "course",
+                referenceId: enrollment._id
+            }).sort({
+                createdAt: -1
+            });
+
+    }
+
+
+    // ==========================================
+    // RETURN
+    // ==========================================
+
+    return {
+
+        exists: !!payment,
+
+        course: {
+            _id: course._id,
+            title: course.title,
+            price: course.price
+        },
+
+        enrollment: {
+            _id: enrollment._id,
+            paymentStatus:
+                enrollment.paymentStatus,
+            paymentDate:
+                enrollment.paymentDate || null
+        },
+
+        payment: payment
+            ? {
+                _id: payment._id,
+                amount: payment.amount,
+                paymentReference:
+                    payment.paymentReference,
+                status: payment.status,
+                paymentMethod:
+                    payment.paymentMethod,
+                proofOfPayment:
+                    payment.proofOfPayment,
+                proofSubmittedAt:
+                    payment.proofSubmittedAt,
+                proofStatus:
+                    payment.proofStatus,
+                adminNotes:
+                    payment.adminNotes || "",
+                paymentDate:
+                    payment.paymentDate || null
+            }
+            : null,
+
+        bankingDetails:
+            BANKING_DETAILS
+    };
+
+};
+
 
 module.exports = {
 
@@ -1036,6 +1201,8 @@ module.exports = {
     createVerificationPayment,
 
     createCoursePayment,
+
+    getCoursePayment,
 
     approvePayment,
 

@@ -191,6 +191,65 @@ exports.createCoursePayment =
 
 
 // =====================================================
+// GET STUDENT COURSE PAYMENT STATUS
+// =====================================================
+
+exports.getCoursePayment =
+    async (req, res) => {
+
+        try {
+
+            const { courseId } =
+                req.params;
+
+
+            if (!courseId) {
+
+                return res.status(400).json({
+
+                    message:
+                        "Course ID is required."
+
+                });
+
+            }
+
+
+            const result =
+                await paymentService.getCoursePayment(
+
+                    req.user,
+
+                    courseId
+
+                );
+
+
+            return res.json(result);
+
+        }
+
+        catch (err) {
+
+            console.error(
+                "GET COURSE PAYMENT ERROR:",
+                err
+            );
+
+
+            return res.status(500).json({
+
+                message:
+                    err.message
+
+            });
+
+        }
+
+    };
+
+
+// =====================================================
 // UPLOAD EFT PROOF OF PAYMENT
 // =====================================================
 
@@ -279,6 +338,23 @@ exports.uploadProofOfPayment = async (req, res) => {
 
                 message:
                     "Proof of payment can only be uploaded for EFT payments."
+
+            });
+
+        }
+
+        // ===================================
+        // PAYMENT MUST STILL BE PENDING
+        // ===================================
+
+        if (payment.status !== "pending") {
+
+            return res.status(400).json({
+
+                message:
+                    payment.status === "paid"
+                        ? "This payment has already been approved."
+                        : "This payment is no longer available for proof submission."
 
             });
 

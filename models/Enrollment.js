@@ -1,105 +1,144 @@
 const mongoose = require("mongoose");
 
+/**
+ * -------------------------------------------------------
+ * MODULE ASSESSMENT PROGRESS
+ * -------------------------------------------------------
+ */
 
-// ==========================================
-// ASSIGNMENT SUBMISSION SCHEMA
-// ==========================================
-
-const AssignmentSubmissionSchema = new mongoose.Schema(
+const ModuleAssessmentSchema = new mongoose.Schema(
   {
     moduleId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
     },
 
-    submittedAt: {
-      type: Date,
-      default: Date.now,
-    },
-
-    answers: [
-      {
-        questionId: mongoose.Schema.Types.ObjectId,
-
-        answer: {
-          type: String,
-          default: "",
-        },
-      },
-    ],
-
     status: {
       type: String,
-      enum: ["pending", "submitted", "marked"],
-      default: "pending",
+      enum: [
+        "not_started",
+        "pending_review",
+        "passed",
+        "failed",
+      ],
+      default: "not_started",
     },
 
-    mark: {
-      type: Number,
-      default: null,
-    },
-
-    feedback: {
-      type: String,
-      default: "",
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
-
-
-// ==========================================
-// EXAM RESULT SCHEMA
-// ==========================================
-
-const ExamResultSchema = new mongoose.Schema(
-  {
-    attempted: {
-      type: Boolean,
-      default: false,
-    },
-
-    attemptedAt: Date,
-
-    answers: [
-      {
-        questionId: mongoose.Schema.Types.ObjectId,
-
-        answer: {
-          type: String,
-          default: "",
-        },
-      },
-    ],
-
-    score: {
+    attempts: {
       type: Number,
       default: 0,
     },
 
-    passed: {
+    latestAttempt: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AssessmentAttempt",
+      default: null,
+    },
+
+    percentage: {
+      type: Number,
+      default: 0,
+    },
+
+    passedAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  { _id: false }
+);
+
+/**
+ * -------------------------------------------------------
+ * LESSON LEARNING PROGRESS
+ * -------------------------------------------------------
+ *
+ * Stores the learning activities completed by the student
+ * inside each lesson.
+ *
+ * This is separate from `lessonsCompleted`.
+ *
+ * `lessonsCompleted` means the entire lesson has been
+ * completed.
+ *
+ * `lessonProgress` records the individual PDFs, audio
+ * files and videos that the student has completed first.
+ * -------------------------------------------------------
+ */
+
+const LessonProgressSchema = new mongoose.Schema(
+  {
+    lessonId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+    },
+
+    /**
+     * ---------------------------------------------------
+     * MATERIALS
+     * ---------------------------------------------------
+     *
+     * Stores the IDs of PDF/audio materials that the
+     * student has completed.
+     */
+
+    materialsCompleted: [
+      {
+        materialId: {
+          type: mongoose.Schema.Types.ObjectId,
+          required: true,
+        },
+
+        completedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
+    /**
+     * ---------------------------------------------------
+     * UPLOADED VIDEO
+     * ---------------------------------------------------
+     */
+
+    uploadedVideoCompleted: {
       type: Boolean,
       default: false,
     },
+
+    uploadedVideoCompletedAt: {
+      type: Date,
+      default: null,
+    },
+
+    /**
+     * ---------------------------------------------------
+     * EXTERNAL VIDEO
+     * ---------------------------------------------------
+     */
+
+    externalVideoCompleted: {
+      type: Boolean,
+      default: false,
+    },
+
+    externalVideoCompletedAt: {
+      type: Date,
+      default: null,
+    },
   },
-  {
-    _id: false,
-  }
+  { _id: false }
 );
 
-
-// ==========================================
-// ENROLLMENT SCHEMA
-// ==========================================
+/**
+ * -------------------------------------------------------
+ * ENROLLMENT SCHEMA
+ * -------------------------------------------------------
+ */
 
 const EnrollmentSchema = new mongoose.Schema(
   {
-    // ==========================================
-    // STUDENT
-    // ==========================================
-
     student: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -112,18 +151,19 @@ const EnrollmentSchema = new mongoose.Schema(
       required: true,
     },
 
-
-    // ==========================================
-    // EFT PAYMENT INFORMATION
-    // ==========================================
+    /**
+     * ---------------------------------------------------
+     * PAYMENT
+     * ---------------------------------------------------
+     */
 
     paymentStatus: {
       type: String,
       enum: [
         "pending",
-        "proof_uploaded",
-        "approved",
-        "rejected",
+        "paid",
+        "failed",
+        "cancelled",
       ],
       default: "pending",
     },
@@ -131,44 +171,20 @@ const EnrollmentSchema = new mongoose.Schema(
     paymentReference: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Payment",
-      default: null,
     },
 
-    paymentDate: {
-      type: Date,
-      default: null,
-    },
-
-    paymentProof: {
-      type: String,
-      default: "",
-    },
-
-    paymentNotes: {
-      type: String,
-      default: "",
-    },
-
-    paymentReviewedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
-
-    paymentReviewedAt: {
-      type: Date,
-      default: null,
-    },
+    paymentDate: Date,
 
     coursePrice: {
       type: Number,
       default: 0,
     },
 
-
-    // ==========================================
-    // LESSON PROGRESS
-    // ==========================================
+    /**
+     * ---------------------------------------------------
+     * LESSON PROGRESS
+     * ---------------------------------------------------
+     */
 
     lessonsCompleted: [
       {
@@ -183,111 +199,110 @@ const EnrollmentSchema = new mongoose.Schema(
       },
     ],
 
+    /**
+     * ---------------------------------------------------
+     * INDIVIDUAL LEARNING ITEM PROGRESS
+     * ---------------------------------------------------
+     *
+     * Tracks completion of PDFs, audio files and videos
+     * before the lesson itself is marked as completed.
+     */
 
-    // ==========================================
-    // MODULE PROGRESS
-    // ==========================================
-
-    modulesCompleted: [
-      {
-        moduleId: {
-          type: mongoose.Schema.Types.ObjectId,
-        },
-
-        completedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
-
-
-    // ==========================================
-    // ASSIGNMENTS
-    // ==========================================
-
-    assignmentSubmissions: {
-      type: [AssignmentSubmissionSchema],
+    lessonProgress: {
+      type: [LessonProgressSchema],
       default: [],
     },
-
-
-    // ==========================================
-    // FINAL EXAM
-    // ==========================================
-
-    finalExamResult: {
-      type: ExamResultSchema,
-      default: () => ({}),
-    },
-
-
-    // ==========================================
-    // OVERALL PROGRESS
-    // ==========================================
 
     progress: {
       type: Number,
       default: 0,
     },
 
-    lastAccessed: {
+    lastAccessed: Date,
+
+    /**
+     * ---------------------------------------------------
+     * MODULE ASSESSMENTS
+     * ---------------------------------------------------
+     *
+     * Stores the student's current status for each
+     * module assignment.
+     */
+
+    moduleAssessments: {
+      type: [ModuleAssessmentSchema],
+      default: [],
+    },
+
+    /**
+     * ---------------------------------------------------
+     * FINAL EXAM
+     * ---------------------------------------------------
+     */
+
+    finalExamStatus: {
+      type: String,
+      enum: [
+        "not_started",
+        "pending_review",
+        "passed",
+        "failed",
+      ],
+      default: "not_started",
+    },
+
+    finalExamAttempts: {
+      type: Number,
+      default: 0,
+    },
+
+    latestFinalExamAttempt: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AssessmentAttempt",
+      default: null,
+    },
+
+    finalExamPercentage: {
+      type: Number,
+      default: 0,
+    },
+
+    finalExamPassedAt: {
       type: Date,
       default: null,
     },
 
-
-    // ==========================================
-    // COURSE COMPLETION
-    // ==========================================
+    /**
+     * ---------------------------------------------------
+     * COURSE COMPLETION
+     * ---------------------------------------------------
+     */
 
     completed: {
       type: Boolean,
       default: false,
     },
 
-    completedAt: {
-      type: Date,
-      default: null,
-    },
+    completedAt: Date,
 
-
-    // ==========================================
-    // CERTIFICATE
-    // ==========================================
+    /**
+     * ---------------------------------------------------
+     * CERTIFICATE
+     * ---------------------------------------------------
+     */
 
     certificateIssued: {
       type: Boolean,
       default: false,
     },
 
-    certificateNumber: {
-      type: String,
-      default: "",
-    },
+    certificateNumber: String,
   },
   {
     timestamps: true,
   }
 );
 
-
-// ==========================================
-// PREVENT DUPLICATE ENROLLMENTS
-// ==========================================
-
-EnrollmentSchema.index(
-  {
-    student: 1,
-    course: 1,
-  },
-  {
-    unique: true,
-  }
-);
-
-
-module.exports = mongoose.model(
-  "Enrollment",
-  EnrollmentSchema
-);
+module.exports =
+  mongoose.models.Enrollment ||
+  mongoose.model("Enrollment", EnrollmentSchema);

@@ -153,6 +153,32 @@ router.post(
 
 /**
  * ============================================================
+ * DELETE UPLOADED LESSON VIDEO
+ * ============================================================
+ */
+router.delete(
+    "/:courseId/modules/:moduleId/lessons/:lessonId/video",
+    protect,
+    adminOnly,
+    courseController.deleteLessonVideo
+);
+
+
+/**
+ * ============================================================
+ * DELETE EXTERNAL VIDEO LINK
+ * ============================================================
+ */
+router.delete(
+    "/:courseId/modules/:moduleId/lessons/:lessonId/external-video",
+    protect,
+    adminOnly,
+    courseController.deleteExternalVideo
+);
+
+
+/**
+ * ============================================================
  * PDF / AUDIO MATERIAL UPLOAD
  * ============================================================
  *
@@ -335,5 +361,17 @@ router.get(
     courseController.downloadCertificate
 );
 
+
+router.post(
+    "/:courseId/material-progress",
+    protect,
+    courseController.completeLessonMaterial
+);
+
+router.post(
+    "/:courseId/video-progress",
+    protect,
+    courseController.completeLessonVideo
+);
 
 module.exports = router;

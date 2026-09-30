@@ -74,3 +74,52 @@ exports.getPlans = async (req, res) => {
     }
 
 };
+
+// ==========================================
+// EMPLOYER: Get My Subscription
+// ==========================================
+exports.getMySubscription = async (req, res) => {
+    try {
+
+        if (!req.user) {
+            return res.status(401).json({
+                message: "Not authorized.",
+            });
+        }
+
+        if (req.user.role !== "employer") {
+            return res.status(403).json({
+                message: "Employer access only.",
+            });
+        }
+
+        const user = await require("../models/User")
+            .findById(req.user._id)
+            .select(
+                "_id subscriptionStatus subscriptionExpiry currentSubscription"
+            );
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User account not found.",
+            });
+        }
+
+        return res.json({
+            subscriptionStatus: user.subscriptionStatus || "inactive",
+            subscriptionExpiry: user.subscriptionExpiry || null,
+            currentSubscription: user.currentSubscription || null,
+        });
+
+    } catch (error) {
+
+        console.error(
+            "GET MY SUBSCRIPTION ERROR:",
+            error
+        );
+
+        return res.status(500).json({
+            message: error.message,
+        });
+    }
+};

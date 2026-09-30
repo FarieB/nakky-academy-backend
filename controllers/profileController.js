@@ -1,3 +1,6 @@
+const fs = require("fs");
+const path = require("path");
+
 const User = require("../models/User");
 const EmployerProfile = require("../models/EmployerProfile");
 const CandidateProfile = require("../models/CandidateProfile");
@@ -170,6 +173,106 @@ exports.uploadDocuments = async (req, res) => {
         });
 
     }
+};
+
+
+// ======================================
+// UPLOAD CANDIDATE PROFILE DOCUMENTS
+// ======================================
+
+exports.uploadCandidateProfileDocuments = async (req, res) => {
+  try {
+    if (req.user.role !== "candidate") {
+      return res.status(403).json({
+        message: "Only candidates can upload profile documents.",
+      });
+    }
+
+    const profile = await CandidateProfile.findOne({
+      user: req.user._id,
+    });
+
+    if (!profile) {
+      return res.status(404).json({
+        message: "Candidate profile not found.",
+      });
+    }
+
+    const files = req.files || {};
+
+    // ==========================================
+    // ID DOCUMENT
+    // ==========================================
+
+    if (files.idDocument?.[0]) {
+      profile.documents.idDocument =
+        files.idDocument[0].filename;
+    }
+
+    // ==========================================
+    // POLICE CLEARANCE
+    // ==========================================
+
+    if (files.policeClearance?.[0]) {
+      profile.documents.policeClearance =
+        files.policeClearance[0].filename;
+    }
+
+    // ==========================================
+    // CV
+    // ==========================================
+
+    if (files.cv?.[0]) {
+      profile.documents.cv =
+        files.cv[0].filename;
+    }
+
+    // ==========================================
+    // QUALIFICATIONS
+    // ==========================================
+
+    if (files.qualifications?.length) {
+      files.qualifications.forEach((file) => {
+        profile.qualifications.push({
+          title: "Qualification",
+          institution: "",
+          yearCompleted: new Date().getFullYear(),
+          certificateFile: file.filename,
+        });
+      });
+    }
+
+    // ==========================================
+    // REFERENCES
+    // ==========================================
+
+    if (files.references?.length) {
+      files.references.forEach((file) => {
+        profile.references.push({
+          file: file.filename,
+        });
+      });
+    }
+
+    await profile.save();
+
+    return res.json({
+      message: "Candidate documents uploaded successfully.",
+      documents: profile.documents,
+      qualifications: profile.qualifications,
+      references: profile.references,
+    });
+
+  } catch (error) {
+    console.error(
+      "UPLOAD CANDIDATE PROFILE DOCUMENTS ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      message: error.message,
+    });
+  }
 };
 
 //
@@ -1126,6 +1229,41 @@ exports.getAllEmployers = async (req, res) => {
 };
 
 // =====================================================
+// ADMIN - GET SINGLE EMPLOYER PROFILE
+// =====================================================
+
+exports.getAdminEmployerById = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Admin only.",
+      });
+    }
+
+    const employer = await EmployerProfile.findById(
+      req.params.employerId
+    ).populate(
+      "user",
+      "name email phone profilePhoto accountStatus subscriptionStatus subscriptionExpiry createdAt lastLogin"
+    );
+
+    if (!employer) {
+      return res.status(404).json({
+        message: "Employer profile not found.",
+      });
+    }
+
+    return res.json(employer);
+  } catch (err) {
+    console.error("ADMIN GET EMPLOYER ERROR:", err);
+
+    return res.status(500).json({
+      message: err.message,
+    });
+  }
+};
+
+// =====================================================
 // ADMIN - VERIFY CANDIDATE
 // =====================================================
 
@@ -1347,6 +1485,42 @@ exports.getCandidateById =
     }
   };
 
+// =====================================================
+// ADMIN - GET SINGLE CANDIDATE PROFILE
+// =====================================================
+
+exports.getAdminCandidateById = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Admin only.",
+      });
+    }
+
+    const candidate = await CandidateProfile.findById(
+      req.params.candidateId
+    ).populate(
+      "user",
+      "name email phone profilePhoto accountStatus subscriptionStatus subscriptionExpiry verifiedBadge isVerified verificationStatus hasPaidVerificationFee uploadedDocuments createdAt lastLogin"
+    );
+
+    if (!candidate) {
+      return res.status(404).json({
+        message: "Candidate profile not found.",
+      });
+    }
+
+    return res.json(candidate);
+  } catch (err) {
+    console.error("ADMIN GET CANDIDATE ERROR:", err);
+
+    return res.status(500).json({
+      message: err.message,
+    });
+  }
+};
+
+
   // ======================================
 // GET USER PRESENCE
 // ======================================
@@ -1374,5 +1548,463 @@ exports.getUserPresence = async (req, res) => {
       message: err.message
     });
 
+  }
+};
+
+// =====================================================
+// ADMIN - ACTIVATE CANDIDATE
+// =====================================================
+
+exports.adminActivateCandidate = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Admin only.",
+      });
+    }
+
+    const candidate = await CandidateProfile.findById(
+      req.params.candidateId
+    );
+
+    if (!candidate) {
+      return res.status(404).json({
+        message: "Candidate profile not found.",
+      });
+    }
+
+    candidate.profileActive = true;
+    await candidate.save();
+
+    // Reactivate the associated user account
+    await User.findByIdAndUpdate(candidate.user, {
+      accountStatus: "active",
+    });
+
+    return res.json({
+      message: "Candidate profile and account activated.",
+      profile: candidate,
+      accountStatus: "active",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: err.message,
+    });
+  }
+};
+
+
+// =====================================================
+// ADMIN - DEACTIVATE CANDIDATE
+// =====================================================
+
+exports.adminDeactivateCandidate = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Admin only.",
+      });
+    }
+
+    const candidate = await CandidateProfile.findById(
+      req.params.candidateId
+    );
+
+    if (!candidate) {
+      return res.status(404).json({
+        message: "Candidate profile not found.",
+      });
+    }
+
+    candidate.profileActive = false;
+    await candidate.save();
+
+    // Deactivate the associated user account
+    await User.findByIdAndUpdate(candidate.user, {
+      accountStatus: "inactive",
+    });
+
+    return res.json({
+      message: "Candidate profile and account deactivated.",
+      profile: candidate,
+      accountStatus: "inactive",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: err.message,
+    });
+  }
+};
+
+
+// =====================================================
+// ADMIN - ACTIVATE EMPLOYER
+// =====================================================
+
+exports.adminActivateEmployer = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Admin only.",
+      });
+    }
+
+    const employer = await EmployerProfile.findById(
+      req.params.employerId
+    );
+
+    if (!employer) {
+      return res.status(404).json({
+        message: "Employer profile not found.",
+      });
+    }
+
+    employer.profileActive = true;
+    employer.hiringStatus = "Looking";
+
+    await employer.save();
+
+    // Reactivate the associated user account
+    await User.findByIdAndUpdate(employer.user, {
+      accountStatus: "active",
+    });
+
+    return res.json({
+      message: "Employer profile and account activated.",
+      profile: employer,
+      accountStatus: "active",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: err.message,
+    });
+  }
+};
+
+
+// =====================================================
+// ADMIN - DEACTIVATE EMPLOYER
+// =====================================================
+
+exports.adminDeactivateEmployer = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Admin only.",
+      });
+    }
+
+    const employer = await EmployerProfile.findById(
+      req.params.employerId
+    );
+
+    if (!employer) {
+      return res.status(404).json({
+        message: "Employer profile not found.",
+      });
+    }
+
+    employer.profileActive = false;
+    employer.hiringStatus = "Paused";
+
+    await employer.save();
+
+    // Deactivate the associated user account
+    await User.findByIdAndUpdate(employer.user, {
+      accountStatus: "inactive",
+    });
+
+    return res.json({
+      message: "Employer profile and account deactivated.",
+      profile: employer,
+      accountStatus: "inactive",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: err.message,
+    });
+  }
+};
+
+
+// =====================================================
+// EMPLOYER - VIEW CANDIDATE DOCUMENT
+// =====================================================
+
+exports.viewCandidateDocument = async (req, res) => {
+  try {
+    // ==========================================
+    // ONLY EMPLOYERS
+    // ==========================================
+
+    if (req.user.role !== "employer") {
+      return res.status(403).json({
+        message: "Only employers can view candidate documents.",
+      });
+    }
+
+    // ==========================================
+    // CHECK EMPLOYER SUBSCRIPTION
+    // ==========================================
+
+    const employer = await User.findById(req.user._id).select(
+      "subscriptionStatus subscriptionExpiry"
+    );
+
+    if (!employer) {
+      return res.status(404).json({
+        message: "Employer account not found.",
+      });
+    }
+
+    const subscriptionActive =
+      employer.subscriptionStatus === "active" &&
+      employer.subscriptionExpiry &&
+      new Date(employer.subscriptionExpiry) > new Date();
+
+    if (!subscriptionActive) {
+      return res.status(403).json({
+        message:
+          "An active subscription is required to view candidate documents.",
+        subscriptionRequired: true,
+      });
+    }
+
+    // ==========================================
+    // FIND CANDIDATE
+    // ==========================================
+
+    const candidate = await CandidateProfile.findById(
+      req.params.candidateId
+    );
+
+    if (!candidate) {
+      return res.status(404).json({
+        message: "Candidate not found.",
+      });
+    }
+
+    // ==========================================
+    // DOCUMENT TYPE
+    // ==========================================
+
+    const { type } = req.params;
+    const index =
+      req.params.index !== undefined
+        ? Number(req.params.index)
+        : null;
+
+    let storedFile = null;
+
+    // ==========================================
+    // ID DOCUMENT
+    // ==========================================
+
+    if (type === "idDocument") {
+      storedFile = candidate.documents?.idDocument;
+    }
+
+    // ==========================================
+    // POLICE CLEARANCE
+    // ==========================================
+
+    else if (type === "policeClearance") {
+      storedFile = candidate.documents?.policeClearance;
+    }
+
+    // ==========================================
+    // CV
+    // ==========================================
+
+    else if (type === "cv") {
+      storedFile = candidate.documents?.cv;
+    }
+
+    // ==========================================
+    // REFERENCE
+    // ==========================================
+
+    else if (type === "reference") {
+      if (
+        index === null ||
+        !Number.isInteger(index) ||
+        index < 0
+      ) {
+        return res.status(400).json({
+          message: "Invalid reference index.",
+        });
+      }
+
+      storedFile =
+        candidate.references?.[index]?.file;
+    }
+
+    // ==========================================
+    // QUALIFICATION CERTIFICATE
+    // ==========================================
+
+    else if (type === "qualification") {
+      if (
+        index === null ||
+        !Number.isInteger(index) ||
+        index < 0
+      ) {
+        return res.status(400).json({
+          message: "Invalid qualification index.",
+        });
+      }
+
+      storedFile =
+        candidate.qualifications?.[index]?.certificateFile;
+    }
+
+    // ==========================================
+    // INVALID DOCUMENT TYPE
+    // ==========================================
+
+    else {
+      return res.status(400).json({
+        message: "Invalid document type.",
+      });
+    }
+
+    // ==========================================
+    // DOCUMENT DOES NOT EXIST
+    // ==========================================
+
+    if (!storedFile) {
+      return res.status(404).json({
+        message: "Document not found.",
+      });
+    }
+
+    // ==========================================
+    // CLEAN STORED FILE PATH
+    // ==========================================
+
+    let filename = String(storedFile);
+
+    // Remove full URL if one was stored
+    try {
+      if (
+        filename.startsWith("http://") ||
+        filename.startsWith("https://")
+      ) {
+        const parsedUrl = new URL(filename);
+        filename = parsedUrl.pathname;
+      }
+    } catch (_error) {
+      // Continue using original filename
+    }
+
+    // Remove leading slash
+    filename = filename.replace(/^\/+/, "");
+
+    // Remove uploads/ prefix if already included
+    filename = filename.replace(/^uploads[\\/]/i, "");
+
+    // Prevent path traversal
+    filename = path.basename(filename);
+
+    // ==========================================
+    // BUILD ACTUAL FILE PATH
+    // ==========================================
+
+    const filePath = path.join(
+      process.cwd(),
+      "private-documents",
+      filename
+    );
+
+    // ==========================================
+    // CHECK FILE EXISTS
+    // ==========================================
+
+    if (!fs.existsSync(filePath)) {
+      console.error(
+        "CANDIDATE DOCUMENT NOT FOUND:",
+        filePath
+      );
+
+      return res.status(404).json({
+        message: "Document file not found on server.",
+      });
+    }
+
+    // ==========================================
+    // DETERMINE MIME TYPE
+    // ==========================================
+
+    const extension =
+      path.extname(filename).toLowerCase();
+
+    const mimeTypes = {
+      ".pdf": "application/pdf",
+
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".png": "image/png",
+      ".gif": "image/gif",
+      ".webp": "image/webp",
+
+      ".doc": "application/msword",
+      ".docx":
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+
+      ".xls": "application/vnd.ms-excel",
+      ".xlsx":
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+
+      ".txt": "text/plain",
+    };
+
+    const mimeType =
+      mimeTypes[extension] ||
+      "application/octet-stream";
+
+    // ==========================================
+    // SEND FILE INLINE
+    // ==========================================
+
+    res.setHeader(
+      "Content-Type",
+      mimeType
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${filename.replace(/"/g, "")}"`
+    );
+
+    res.setHeader(
+      "Cache-Control",
+      "private, no-store, max-age=0"
+    );
+
+    return res.sendFile(
+      filePath,
+      (err) => {
+        if (err && !res.headersSent) {
+          console.error(
+            "DOCUMENT SEND ERROR:",
+            err
+          );
+
+          return res.status(500).json({
+            message: "Unable to open document.",
+          });
+        }
+      }
+    );
+
+  } catch (error) {
+    console.error(
+      "VIEW CANDIDATE DOCUMENT ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      message: "Unable to view candidate document.",
+    });
   }
 };

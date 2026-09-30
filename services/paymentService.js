@@ -4,6 +4,7 @@ const Subscription = require("../models/Subscription");
 const SubscriptionPlan = require("../models/SubscriptionPlan");
 const Enrollment = require("../models/Enrollment");
 const Course = require("../models/Course");
+const { activateSubscription } = require("./subscriptionService");
 
 
 // =====================================================
@@ -892,50 +893,30 @@ const approvePayment = async (
 
 
     // ==========================================
-    // EMPLOYER SUBSCRIPTION
-    // ==========================================
+// EMPLOYER SUBSCRIPTION
+// ==========================================
 
-    if (payment.type === "subscription") {
+if (payment.type === "subscription") {
 
-        const subscription =
-            await Subscription.findById(
-                payment.referenceId
-            ).populate("plan");
-
-
-        if (!subscription) {
-
-            throw new Error(
-                "Subscription not found."
-            );
-
-        }
-
-
-        const startDate =
-            new Date();
-
-        const endDate =
-            new Date(startDate);
-
-        endDate.setDate(
-            endDate.getDate() +
-            subscription.plan.durationDays
+    const subscription =
+        await Subscription.findById(
+            payment.referenceId
         );
 
-
-        subscription.status =
-            "active";
-
-        subscription.startDate =
-            startDate;
-
-        subscription.endDate =
-            endDate;
-
-        await subscription.save();
-
+    if (!subscription) {
+        throw new Error(
+            "Subscription not found."
+        );
     }
+
+    // Activate the subscription and synchronize
+    // the employer's User subscription fields.
+    await activateSubscription(
+        subscription.employer,
+        subscription._id
+    );
+
+}
 
 
     // ==========================================

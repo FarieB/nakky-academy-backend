@@ -77,7 +77,7 @@ exports.recommendCandidates = async (req, res) => {
 
         // workTypes is now an array
         if (workType) {
-            filter.workTypes = workType;
+            filter.workerTypes = workType;
         }
 
         const candidates = await Candidate.find(filter)

@@ -26,8 +26,18 @@ const activateSubscription = async (userId, subscriptionId) => {
     }
 
     if (subscription.status === "active") {
-        return subscription;
-    }
+    await User.findByIdAndUpdate(
+        subscription.employer,
+        {
+            subscriptionStatus: "active",
+            subscriptionExpiry: subscription.endDate,
+            currentSubscription: subscription._id,
+        },
+        { new: true }
+    );
+
+    return subscription;
+}
 
     const today = new Date();
 

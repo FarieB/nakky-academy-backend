@@ -13,6 +13,8 @@ const {
     deleteUser,
     deleteCandidate,
     deleteCourse,
+    activateUser,
+    deactivateUser,
 } = require("../controllers/adminController");
 
 
@@ -20,6 +22,8 @@ const {
 // Dashboard
 // =====================================
 router.get("/stats", protect, adminOnly, getPlatformStats);
+router.put("/users/:id/activate", protect, adminOnly, activateUser);
+router.put("/users/:id/deactivate", protect, adminOnly, deactivateUser);
 
 
 // =====================================

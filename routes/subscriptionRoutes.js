@@ -7,6 +7,7 @@ const protect = require("../middleware/authMiddleware");
 const {
   createPlan,
   getPlans,
+  getMySubscription,
 } = require("../controllers/subscriptionController");
 
 
@@ -26,6 +27,16 @@ router.post(
 router.get(
   "/plans",
   getPlans
+);
+
+
+// ==============================
+// EMPLOYER: Get my subscription
+// ==============================
+router.get(
+  "/my-subscription",
+  protect,
+  getMySubscription
 );
 
 

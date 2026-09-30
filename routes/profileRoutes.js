@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const protect = require("../middleware/authMiddleware");
+const documentUpload = require("../middleware/documentUpload");
 
 const {
   createCandidateProfile,
@@ -9,14 +10,20 @@ const {
   updateCandidateProfile,
   activateCandidateProfile,
   deactivateCandidateProfile,
+  adminActivateCandidate,
+  adminDeactivateCandidate,
   getCandidateById,
   uploadDocuments,
+  uploadCandidateProfileDocuments,
+  viewCandidateDocument,
 
   createEmployerProfile,
   getEmployerProfile,
   updateEmployerProfile,
   activateEmployerProfile,
   deactivateEmployerProfile,
+  adminActivateEmployer,
+  adminDeactivateEmployer,
 
   searchCandidates,
   getCandidateContact,
@@ -25,7 +32,9 @@ const {
   removeSavedCandidate,
 
   getAllCandidates,
+  getAdminCandidateById,
   getAllEmployers,
+  getAdminEmployerById,
   verifyCandidate,
   rejectCandidate,
   getRecruitmentStats,
@@ -41,10 +50,54 @@ router.put("/candidate", protect, updateCandidateProfile);
 router.put("/candidate/activate", protect, activateCandidateProfile);
 router.put("/candidate/deactivate", protect, deactivateCandidateProfile);
 router.get("/candidate/:id", protect, getCandidateById);
+router.get(
+  "/candidate/:candidateId/document/:type/:index?",
+  protect,
+  viewCandidateDocument
+);
 router.post(
     "/candidate/upload-documents",
     protect,
     uploadDocuments
+);
+router.post(
+  "/candidate/profile-documents",
+  protect,
+  documentUpload.fields([
+    {
+      name: "idDocument",
+      maxCount: 1,
+    },
+    {
+      name: "policeClearance",
+      maxCount: 1,
+    },
+    {
+      name: "cv",
+      maxCount: 1,
+    },
+    {
+      name: "qualifications",
+      maxCount: 20,
+    },
+    {
+      name: "references",
+      maxCount: 20,
+    },
+  ]),
+  uploadCandidateProfileDocuments
+);
+router.post(
+  "/candidate/profile-documents",
+  protect,
+  documentUpload.fields([
+    { name: "idDocument", maxCount: 1 },
+    { name: "policeClearance", maxCount: 1 },
+    { name: "cv", maxCount: 1 },
+    { name: "qualifications", maxCount: 20 },
+    { name: "references", maxCount: 20 },
+  ]),
+  uploadCandidateProfileDocuments
 );
 
 // ======================================
@@ -73,9 +126,42 @@ router.delete("/candidate/:candidateId/save", protect, removeSavedCandidate);
 // ADMIN CHANNELS
 // ======================================
 router.get("/admin/candidates", protect, getAllCandidates);
+router.get(
+  "/admin/candidate/:candidateId",
+  protect,
+  getAdminCandidateById
+);
 router.get("/admin/employers", protect, getAllEmployers);
+router.get(
+  "/admin/employer/:employerId",
+  protect,
+  getAdminEmployerById
+);
 router.put("/admin/candidate/:candidateId/verify", protect, verifyCandidate);
 router.put("/admin/candidate/:candidateId/reject", protect, rejectCandidate);
+router.put(
+  "/admin/candidate/:candidateId/activate",
+  protect,
+  adminActivateCandidate
+);
+
+router.put(
+  "/admin/candidate/:candidateId/deactivate",
+  protect,
+  adminDeactivateCandidate
+);
+
+router.put(
+  "/admin/employer/:employerId/activate",
+  protect,
+  adminActivateEmployer
+);
+
+router.put(
+  "/admin/employer/:employerId/deactivate",
+  protect,
+  adminDeactivateEmployer
+);
 router.get("/admin/stats", protect, getRecruitmentStats);
 
 router.get(

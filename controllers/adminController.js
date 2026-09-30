@@ -168,3 +168,79 @@ exports.getRevenue = async (req, res) => {
         });
     }
 };
+
+
+// ==============================
+// Activate User Account
+// ==============================
+
+exports.activateUser = async (req, res) => {
+    try {
+        if (req.user.role !== "admin") {
+            return res.status(403).json({
+                message: "Admin only.",
+            });
+        }
+
+        const user = await User.findById(req.params.id);
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found.",
+            });
+        }
+
+        user.accountStatus = "active";
+        await user.save();
+
+        res.json({
+            message: "User account activated.",
+            user,
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: error.message,
+        });
+    }
+};
+
+
+// ==============================
+// Deactivate User Account
+// ==============================
+
+exports.deactivateUser = async (req, res) => {
+    try {
+        if (req.user.role !== "admin") {
+            return res.status(403).json({
+                message: "Admin only.",
+            });
+        }
+
+        const user = await User.findById(req.params.id);
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found.",
+            });
+        }
+
+        if (user.role === "admin") {
+            return res.status(403).json({
+                message: "Administrator accounts cannot be deactivated here.",
+            });
+        }
+
+        user.accountStatus = "inactive";
+        await user.save();
+
+        res.json({
+            message: "User account deactivated.",
+            user,
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: error.message,
+        });
+    }
+};

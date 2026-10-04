@@ -1734,40 +1734,39 @@ exports.adminDeactivateEmployer = async (req, res) => {
 exports.viewCandidateDocument = async (req, res) => {
   try {
     // ==========================================
-    // ONLY EMPLOYERS
+    // ADMIN OR EMPLOYER ONLY
     // ==========================================
 
-    if (req.user.role !== "employer") {
-      return res.status(403).json({
-        message: "Only employers can view candidate documents.",
-      });
-    }
-
-    // ==========================================
-    // CHECK EMPLOYER SUBSCRIPTION
-    // ==========================================
-
-    const employer = await User.findById(req.user._id).select(
-      "subscriptionStatus subscriptionExpiry"
-    );
-
-    if (!employer) {
-      return res.status(404).json({
-        message: "Employer account not found.",
-      });
-    }
-
-    const subscriptionActive =
-      employer.subscriptionStatus === "active" &&
-      employer.subscriptionExpiry &&
-      new Date(employer.subscriptionExpiry) > new Date();
-
-    if (!subscriptionActive) {
+    if (
+      req.user.role !== "admin" &&
+      req.user.role !== "employer"
+    ) {
       return res.status(403).json({
         message:
-          "An active subscription is required to view candidate documents.",
-        subscriptionRequired: true,
+          "You are not authorized to view candidate documents.",
       });
+    }
+
+    // ==========================================
+    // EMPLOYER SUBSCRIPTION CHECK
+    // ADMINS BYPASS THIS CHECK
+    // ==========================================
+
+    if (req.user.role === "employer") {
+      const employer = await User.findById(req.user._id);
+
+      const subscriptionActive =
+        employer?.subscriptionStatus === "active" &&
+        employer?.subscriptionExpiry &&
+        new Date(employer.subscriptionExpiry) > new Date();
+
+      if (!subscriptionActive) {
+        return res.status(403).json({
+          message:
+            "An active subscription is required to view candidate documents.",
+          subscriptionRequired: true,
+        });
+      }
     }
 
     // ==========================================

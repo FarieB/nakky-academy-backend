@@ -51,7 +51,13 @@ router.put("/candidate/activate", protect, activateCandidateProfile);
 router.put("/candidate/deactivate", protect, deactivateCandidateProfile);
 router.get("/candidate/:id", protect, getCandidateById);
 router.get(
-  "/candidate/:candidateId/document/:type/:index?",
+  "/candidate/:candidateId/document/:type",
+  protect,
+  viewCandidateDocument
+);
+
+router.get(
+  "/candidate/:candidateId/document/:type/:index",
   protect,
   viewCandidateDocument
 );
@@ -84,18 +90,6 @@ router.post(
       name: "references",
       maxCount: 20,
     },
-  ]),
-  uploadCandidateProfileDocuments
-);
-router.post(
-  "/candidate/profile-documents",
-  protect,
-  documentUpload.fields([
-    { name: "idDocument", maxCount: 1 },
-    { name: "policeClearance", maxCount: 1 },
-    { name: "cv", maxCount: 1 },
-    { name: "qualifications", maxCount: 20 },
-    { name: "references", maxCount: 20 },
   ]),
   uploadCandidateProfileDocuments
 );

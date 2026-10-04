@@ -89,3 +89,26 @@ exports.getUnreadCount = async (req, res) => {
     }
 
 };
+
+// ==============================
+// Clear All My Notifications
+// ==============================
+exports.clearAllNotifications = async (req, res) => {
+  try {
+    await NotificationModel.deleteMany({
+      user: req.user._id,
+    });
+
+    // Reset the real-time notification badge
+    await sendNotificationBadge(req.user._id);
+
+    res.json({
+      message: "All notifications cleared successfully.",
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      message: err.message,
+    });
+  }
+};

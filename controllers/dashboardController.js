@@ -1,3 +1,5 @@
+const Message = require("../models/Message");
+const NotificationModel = require("../models/Notification");
 const User = require("../models/user");
 const CandidateProfile = require("../models/CandidateProfile");
 const Enrollment = require("../models/Enrollment");
@@ -151,50 +153,66 @@ if (role === "employer") {
     // CANDIDATE DASHBOARD
     // =====================================================
     if (role === "candidate") {
-
-      const profile = await CandidateProfile.findOne({
+    const profile = await CandidateProfile.findOne({
         user: userId,
-      }).populate("user");
+    }).populate("user");
 
-      const enrollments = await Enrollment.find({
+    const enrollments = await Enrollment.find({
         student: userId,
-      }).populate("course");
+    }).populate("course");
 
-      const completedCourses = enrollments.filter(
-        (e) => e.completed
-      );
+    const completedCourses = enrollments.filter(
+        (enrollment) =>
+            enrollment.progress >= 100 ||
+            enrollment.status === "completed"
+    );
 
-      const certificates = enrollments.filter(
-        (e) => e.certificateIssued
-      );
+    const certificates = enrollments.filter(
+        (enrollment) => enrollment.certificateIssued === true
+    );
 
-      const enrolledIds = enrollments.map(
-        (e) => e.course._id
-      );
+    const recommendedCourses = await Course.find({
+        isPublished: true,
+    })
+        .sort({ createdAt: -1 })
+        .limit(5);
 
-      const recommendedCourses = await Course.find({
-        _id: {
-          $nin: enrolledIds,
-        },
-      }).limit(5);
+    // ==============================
+    // RECENT MESSAGES
+    // ==============================
+    const messages = await Message.find({
+        $or: [
+            { sender: userId },
+            { receiver: userId },
+        ],
+    })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .populate("sender", "name firstName profilePhoto")
+        .populate("receiver", "name firstName profilePhoto");
 
-      // 2. CALCULATE COMPLETION SCORE HERE
-      const completion = calculateProfileCompletion(profile);
+    // ==============================
+    // RECENT NOTIFICATIONS
+    // ==============================
+    const notifications = await NotificationModel.find({
+        user: userId,
+    })
+        .sort({ createdAt: -1 })
+        .limit(10);
 
-      return res.json({
+    const completion = calculateProfileCompletion(profile);
 
+    return res.json({
         role: "candidate",
 
         profile,
 
         stats: {
-          enrolledCourses: enrollments.length,
-          completedCourses: completedCourses.length,
-          certificates: certificates.length,
-          verificationStatus:
-            profile?.verificationStatus || "unverified",
-          verifiedBadge:
-            profile?.verifiedBadge || false,
+            enrolledCourses: enrollments.length,
+            verificationStatus:
+                profile?.verificationStatus || "unverified",
+            verifiedBadge:
+                profile?.verifiedBadge || false,
         },
 
         enrollments,
@@ -205,11 +223,15 @@ if (role === "employer") {
 
         recommendedCourses,
 
-        // 3. EXPOSE THE COMPLETION OBJECT TO RESPOND TO FRONTEND
         profileCompletion: completion,
 
-      });
-    }
+        // NEW
+        messages,
+
+        // NEW
+        notifications,
+    });
+}
 
     // =====================================================
     // STUDENT DASHBOARD

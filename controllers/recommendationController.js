@@ -58,9 +58,7 @@ exports.recommendCourses = async (req, res) => {
 // Recommend Candidates
 // =================================
 exports.recommendCandidates = async (req, res) => {
-
     try {
-
         if (req.user.role !== "employer") {
             return res.status(403).json({
                 message: "Only employers can access candidate recommendations.",
@@ -69,28 +67,40 @@ exports.recommendCandidates = async (req, res) => {
 
         const { workType, province } = req.query;
 
-        const filter = {};
+        // ==========================================
+        // IMPORTANT:
+        // Only active candidates can be recommended
+        // to employers.
+        // ==========================================
+        const filter = {
+            profileActive: true,
+            profileCompleted: true,
+        };
 
         if (province) {
             filter.province = province;
         }
 
-        // workTypes is now an array
         if (workType) {
             filter.workerTypes = workType;
         }
 
         const candidates = await Candidate.find(filter)
-            .populate("user", "name email profilePhoto verifiedBadge");
+            .populate(
+                "user",
+                "name email profilePhoto verifiedBadge"
+            );
 
         return res.json(candidates);
 
     } catch (error) {
+        console.error(
+            "RECOMMEND CANDIDATES ERROR:",
+            error
+        );
 
         return res.status(500).json({
             message: error.message,
         });
-
     }
-
-};
+}

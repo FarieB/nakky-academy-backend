@@ -41,66 +41,56 @@ exports.createCandidateProfile = async (req, res) => {
       user: req.user._id,
 
       firstName: req.body.firstName,
-
       surname: req.body.surname,
-
       profilePhoto: req.body.profilePhoto,
 
       gender: req.body.gender,
-
       dateOfBirth: req.body.dateOfBirth,
-
       nationality: req.body.nationality,
 
       languages: req.body.languages || [],
 
       province: req.body.province,
-
       city: req.body.city,
-
       suburb: req.body.suburb,
 
       bio: req.body.bio,
 
       workerTypes: req.body.workerTypes || [],
 
-      yearsExperience:
-        req.body.yearsExperience || 0,
-
-      expectedSalary:
-        req.body.expectedSalary || 0,
+      yearsExperience: req.body.yearsExperience || 0,
+      expectedSalary: req.body.expectedSalary || 0,
 
       skills: req.body.skills || [],
 
-      workPreferences:
-        req.body.workPreferences || [],
+      workPreferences: req.body.workPreferences || [],
 
-      availabilityStatus:
-        req.body.availabilityStatus,
+      availabilityStatus: req.body.availabilityStatus,
 
-      qualifications:
-        req.body.qualifications || [],
+      qualifications: req.body.qualifications || [],
+      references: req.body.references || [],
 
-      references:
-        req.body.references || [],
-
-      documents:
-        req.body.documents || {},
+      documents: req.body.documents || {},
 
       profileCompleted: false,
 
+      // Candidates start active when their profile is created.
+      // Admin controls future activation/deactivation.
       profileActive: true,
     });
 
-    res.status(201).json(profile);
+    return res.status(201).json(profile);
   } catch (err) {
     console.error("CREATE PROFILE ERROR:", err);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: err.message,
-      stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
+      stack:
+        process.env.NODE_ENV === "development"
+          ? err.stack
+          : undefined,
     });
-  } 
+  }
 };
 
 // ======================================
@@ -283,6 +273,12 @@ exports.uploadCandidateProfileDocuments = async (req, res) => {
 
 exports.getCandidateProfile = async (req, res) => {
   try {
+    if (req.user.role !== "candidate") {
+      return res.status(403).json({
+        message: "Only candidates can access their candidate profile.",
+      });
+    }
+
     const profile = await CandidateProfile.findOne({
       user: req.user._id,
     }).populate(
@@ -290,75 +286,144 @@ exports.getCandidateProfile = async (req, res) => {
       "title"
     );
 
+    // IMPORTANT:
+    // A newly registered candidate will not have a
+    // CandidateProfile until they complete the profile builder.
     if (!profile) {
       return res.status(404).json({
         message: "Candidate profile not found.",
+        profileExists: false,
       });
     }
 
-    res.json(profile);
+    return res.json(profile);
   } catch (err) {
-    res.status(500).json({
-      error: err.message,
+    console.error("GET CANDIDATE PROFILE ERROR:", err);
+
+    return res.status(500).json({
+      message: err.message,
     });
   }
 };
 
+
 //
 // =====================================================
-// UPDATE CANDIDATE PROFILE
+// UPDATE / CREATE CANDIDATE PROFILE
 // =====================================================
 //
 
 exports.updateCandidateProfile = async (req, res) => {
   try {
-    const profile = await CandidateProfile.findOne({
-      user: req.user._id,
-    });
-
-    if (!profile) {
-      return res.status(404).json({
-        message: "Candidate profile not found.",
+    if (req.user.role !== "candidate") {
+      return res.status(403).json({
+        message: "Only candidates can update candidate profiles.",
       });
     }
 
-    const fields = [
-      "firstName",
-      "surname",
-      "profilePhoto",
-      "gender",
-      "dateOfBirth",
-      "nationality",
-      "languages",
-      "province",
-      "city",
-      "suburb",
-      "bio",
-      "workerTypes",
-      "yearsExperience",
-      "expectedSalary",
-      "skills",
-      "workPreferences",
-      "availabilityStatus",
-      "qualifications",
-      "references",
-      "documents",
-      "profileCompleted",
-      "profileActive",
-    ];
-
-    fields.forEach((field) => {
-      if (req.body[field] !== undefined) {
-        profile[field] = req.body[field];
-      }
+    let profile = await CandidateProfile.findOne({
+      user: req.user._id,
     });
+
+    // ==================================================
+    // If the candidate has no profile yet, create it.
+    // ==================================================
+
+    if (!profile) {
+      profile = new CandidateProfile({
+        user: req.user._id,
+
+        firstName: req.body.firstName,
+        surname: req.body.surname,
+        profilePhoto: req.body.profilePhoto,
+
+        gender: req.body.gender,
+        dateOfBirth: req.body.dateOfBirth,
+        nationality: req.body.nationality,
+
+        languages: req.body.languages || [],
+
+        province: req.body.province,
+        city: req.body.city,
+        suburb: req.body.suburb,
+
+        bio: req.body.bio,
+
+        workerTypes: req.body.workerTypes || [],
+
+        yearsExperience: req.body.yearsExperience || 0,
+        expectedSalary: req.body.expectedSalary || 0,
+
+        skills: req.body.skills || [],
+
+        workPreferences: req.body.workPreferences || [],
+
+        availabilityStatus: req.body.availabilityStatus,
+
+        qualifications: req.body.qualifications || [],
+        references: req.body.references || [],
+
+        documents: req.body.documents || {},
+
+        profileCompleted:
+          req.body.profileCompleted === true,
+
+        // A candidate cannot control this value.
+        // New profiles start active.
+        profileActive: true,
+      });
+    } else {
+      // ==================================================
+      // Existing profile — update allowed candidate fields
+      // ==================================================
+
+      const fields = [
+        "firstName",
+        "surname",
+        "profilePhoto",
+        "gender",
+        "dateOfBirth",
+        "nationality",
+        "languages",
+        "province",
+        "city",
+        "suburb",
+        "bio",
+        "workerTypes",
+        "yearsExperience",
+        "expectedSalary",
+        "skills",
+        "workPreferences",
+        "availabilityStatus",
+        "qualifications",
+        "references",
+        "documents",
+        "profileCompleted",
+      ];
+
+      fields.forEach((field) => {
+        if (req.body[field] !== undefined) {
+          profile[field] = req.body[field];
+        }
+      });
+
+      // ==================================================
+      // IMPORTANT:
+      // profileActive is deliberately NOT included above.
+      //
+      // Candidates cannot activate themselves after an
+      // admin has deactivated their profile.
+      // ==================================================
+    }
 
     await profile.save();
 
-    res.json(profile);
+    return res.json(profile);
   } catch (err) {
-    res.status(500).json({
-      error: err.message,
+    console.error("UPDATE CANDIDATE PROFILE ERROR:", err);
+
+    return res.status(500).json({
+      message: err.message,
     });
   }
 };
@@ -558,20 +623,31 @@ exports.updateEmployerProfile = async (req, res) => {
 
 exports.saveCandidate = async (req, res) => {
   try {
-
     if (req.user.role !== "employer") {
       return res.status(403).json({
         message: "Only employers can save candidates.",
       });
     }
 
-    const { candidateId } = req.params; 
+    const { candidateId } = req.params;
 
-    const candidate = await CandidateProfile.findById(candidateId);
+    const candidate = await CandidateProfile.findById(
+      candidateId
+    );
 
     if (!candidate) {
       return res.status(404).json({
         message: "Candidate not found.",
+      });
+    }
+
+    // ==========================================
+    // Employers can only save active candidates
+    // ==========================================
+
+    if (candidate.profileActive !== true) {
+      return res.status(404).json({
+        message: "Candidate profile is not available.",
       });
     }
 
@@ -595,42 +671,39 @@ exports.saveCandidate = async (req, res) => {
     // Create notification
     // ==============================
 
-    const employer = await User.findById(req.user._id)
-      .select("firstName name");
+    const employer = await User.findById(
+      req.user._id
+    ).select("firstName name");
 
     const employerName =
-      employer.firstName ||
-      employer.name.split(" ")[0];
+      employer?.firstName ||
+      employer?.name?.split(" ")[0] ||
+      "An employer";
 
     await createNotification({
-
       user: candidate.user,
-
       sender: req.user._id,
-
       title: "Profile Saved",
-
       message: `${employerName} saved your profile.`,
-
       type: "candidate_saved",
-
       action: "open_profile",
-
       actionData: {
         employerId: req.user._id,
         employerName: employerName,
       },
-
     });
 
-    res.status(201).json(saved);
+    return res.status(201).json(saved);
 
   } catch (err) {
+    console.error(
+      "SAVE CANDIDATE ERROR:",
+      err
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       message: err.message,
     });
-
   }
 };
 
@@ -641,26 +714,52 @@ exports.saveCandidate = async (req, res) => {
 
 exports.getSavedCandidates = async (req, res) => {
   try {
+    if (req.user.role !== "employer") {
+      return res.status(403).json({
+        message: "Only employers can access saved candidates.",
+      });
+    }
 
     const saved = await SavedCandidate.find({
       employer: req.user._id,
     })
       .populate({
         path: "candidate",
+        match: {
+          profileActive: true,
+        },
         populate: {
           path: "user",
           select:
-            "firstName profilePhoto verifiedBadge",
+            "name email profilePhoto verifiedBadge",
         },
       })
       .sort({
         createdAt: -1,
       });
 
-    res.json(saved);
+    // ==========================================
+    // Mongoose leaves candidate as null when the
+    // match condition fails.
+    //
+    // Remove those inactive candidates from the
+    // response while keeping their SavedCandidate
+    // record in the database.
+    // ==========================================
+
+    const activeSavedCandidates = saved.filter(
+      (item) => item.candidate !== null
+    );
+
+    return res.json(activeSavedCandidates);
 
   } catch (err) {
-    res.status(500).json({
+    console.error(
+      "GET SAVED CANDIDATES ERROR:",
+      err
+    );
+
+    return res.status(500).json({
       message: err.message,
     });
   }
@@ -928,84 +1027,6 @@ exports.searchCandidates = async (req, res) => {
 
   }
 
-};
-
-//
-// =====================================================
-// ACTIVATE CANDIDATE PROFILE
-// =====================================================
-//
-
-exports.activateCandidateProfile = async (req, res) => {
-  try {
-
-    const profile = await CandidateProfile.findOne({
-      user: req.user._id
-    });
-
-    if (!profile) {
-      return res.status(404).json({
-        message: "Candidate profile not found."
-      });
-    }
-
-    profile.profileActive = true;
-
-    await profile.save();
-
-    refreshAdminDashboard();
-
-    res.json({
-      message: "Profile activated.",
-      profile
-    });
-
-  } catch (err) {
-
-    res.status(500).json({
-      error: err.message
-    });
-
-  }
-};
-
-//
-// =====================================================
-// DEACTIVATE CANDIDATE PROFILE
-// =====================================================
-//
-
-exports.deactivateCandidateProfile = async (req, res) => {
-  try {
-
-    const profile = await CandidateProfile.findOne({
-      user: req.user._id
-    });
-
-    if (!profile) {
-      return res.status(404).json({
-        message: "Candidate profile not found."
-      });
-    }
-
-    profile.profileActive = false;
-
-    await profile.save();
-
-    refreshAdminDashboard();
-
-    res.json({
-      message: "Profile deactivated.",
-      profile
-    });
-
-  } catch (err) {
-
-    res.status(500).json({
-      error: err.message
-    });
-
-  }
 };
 
 //
@@ -1457,33 +1478,46 @@ exports.getRecruitmentStats = async (req, res) => {
 // =====================================================
 //
 
-exports.getCandidateById =
-  async (req, res) => {
-    try {
+exports.getCandidateById = async (req, res) => {
+  try {
+    const candidate = await CandidateProfile.findById(
+      req.params.id
+    ).populate(
+      "user",
+      "name profilePhoto verifiedBadge"
+    );
 
-      const candidate =
-        await CandidateProfile.findById(
-          req.params.id
-        ).populate(
-          "user",
-          "name profilePhoto verifiedBadge"
-        );
-
-      if (!candidate) {
-        return res.status(404).json({
-          message:
-            "Candidate not found",
-        });
-      }
-
-      res.json(candidate);
-
-    } catch (err) {
-      res.status(500).json({
-        message: err.message,
+    if (!candidate) {
+      return res.status(404).json({
+        message: "Candidate not found",
       });
     }
-  };
+
+    // ==================================================
+    // EMPLOYERS CAN ONLY VIEW ACTIVE CANDIDATES
+    // ==================================================
+    if (
+      req.user.role === "employer" &&
+      candidate.profileActive !== true
+    ) {
+      return res.status(404).json({
+        message: "Candidate profile is not available.",
+      });
+    }
+
+    return res.json(candidate);
+
+  } catch (err) {
+    console.error(
+      "GET CANDIDATE BY ID ERROR:",
+      err
+    );
+
+    return res.status(500).json({
+      message: err.message,
+    });
+  }
+};
 
 // =====================================================
 // ADMIN - GET SINGLE CANDIDATE PROFILE

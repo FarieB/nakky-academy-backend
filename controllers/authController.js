@@ -1,6 +1,5 @@
 const User = require("../models/user");
 const EmployerProfile = require("../models/EmployerProfile");
-const CandidateProfile = require("../models/CandidateProfile");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const {
@@ -84,23 +83,15 @@ const register = async (req, res) => {
     }
 
     // ==========================================
-    // Create Candidate Profile
+    // Candidate Profile
     // ==========================================
-    if (role === "candidate") {
-      await CandidateProfile.create({
-        user: user._id,
-        firstName: name,
-        surname: "",
-        profileActive: true,
-        profileCompleted: false,
-        profileVerified: false,
-      });
-
-      console.log(
-        "CANDIDATE PROFILE CREATED:",
-        user._id.toString()
-      );
-    }
+    // IMPORTANT:
+    // Candidate profiles are NOT created during
+    // registration because surname and profilePhoto
+    // are required by CandidateProfile.
+    //
+    // The candidate creates/completes the profile
+    // later through Profile Builder.
 
     // ==========================================
     // Refresh admin dashboard

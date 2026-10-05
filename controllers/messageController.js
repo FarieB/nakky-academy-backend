@@ -1,5 +1,6 @@
 const Message = require("../models/Message");
 const User = require("../models/user");
+const CandidateProfile = require("../models/CandidateProfile");
 // 1. IMPORT SOCKET SERVICE AT THE TOP
 const socketService = require("../services/socketService"); 
 
@@ -24,7 +25,47 @@ exports.sendMessage = async (req, res) => {
             });
         }
 
-        // Create message with status
+        // ==================================================
+        // CHECK WHETHER THE SENDER IS AN EMPLOYER
+        // AND THE RECEIVER IS A CANDIDATE
+        // ==================================================
+
+        if (req.user.role === "employer") {
+            const receiver = await User.findById(receiverId)
+                .select("role");
+
+            if (!receiver) {
+                return res.status(404).json({
+                    message: "Receiver not found.",
+                });
+            }
+
+            // ==============================================
+            // Employers cannot message deactivated candidates
+            // ==============================================
+
+            if (receiver.role === "candidate") {
+                const candidateProfile =
+                    await CandidateProfile.findOne({
+                        user: receiverId,
+                    }).select("profileActive");
+
+                if (
+                    !candidateProfile ||
+                    candidateProfile.profileActive !== true
+                ) {
+                    return res.status(403).json({
+                        message:
+                            "This candidate is currently unavailable.",
+                    });
+                }
+            }
+        }
+
+        // ==================================================
+        // Create message
+        // ==================================================
+
         const newMessage = await Message.create({
             sender: req.user._id,
             receiver: receiverId,
@@ -32,46 +73,71 @@ exports.sendMessage = async (req, res) => {
             status: "sent",
         });
 
+        // ==================================================
         // Get sender's first name
+        // ==================================================
+
         const sender = await User.findById(req.user._id)
             .select("firstName name");
 
         const senderName =
-            sender.firstName ||
-            sender.name.split(" ")[0];
+            sender?.firstName ||
+            sender?.name?.split(" ")[0] ||
+            "User";
 
+        // ==================================================
         // Create notification
+        // ==================================================
+
         await notifyMessage({
             sender: req.user._id,
             receiver: receiverId,
             senderName,
         });
 
-        // Fetch populated message with necessary fields
-        const populatedMessage = await Message.findById(newMessage._id)
-            .populate(
-                "sender",
-                "name firstName profilePhoto"
-            )
-            .populate(
-                "receiver",
-                "name firstName profilePhoto"
-            );
+        // ==================================================
+        // Fetch populated message
+        // ==================================================
 
-        // Emit message to the receiver instantly via WebSockets
+        const populatedMessage =
+            await Message.findById(newMessage._id)
+                .populate(
+                    "sender",
+                    "name firstName profilePhoto"
+                )
+                .populate(
+                    "receiver",
+                    "name firstName profilePhoto"
+                );
+
+        // ==================================================
+        // Emit message via WebSocket
+        // ==================================================
+
         socketService.sendMessage(
             receiverId,
             populatedMessage
         );
 
-        // 2. BROADCAST UNREAD COUNT TO THE RECEIVER AFTER SAVING
-        await socketService.sendUnreadCount(receiverId);
+        // ==================================================
+        // Update receiver unread count
+        // ==================================================
 
-        // Return populated message to the sender
-        res.status(201).json(populatedMessage);
+        await socketService.sendUnreadCount(
+            receiverId
+        );
+
+        return res.status(201).json(
+            populatedMessage
+        );
 
     } catch (err) {
-        res.status(500).json({
+        console.error(
+            "SEND MESSAGE ERROR:",
+            err
+        );
+
+        return res.status(500).json({
             error: err.message,
         });
     }

@@ -51,30 +51,41 @@ if (role === "employer") {
       profileCompleted: true,
     });
 
-  // -----------------------------------------
-  // Saved candidates
-  // -----------------------------------------
-  const savedCandidates =
-    await SavedCandidate.countDocuments({
-      employer: userId,
-    });
+// -----------------------------------------
+// Saved candidates
+// -----------------------------------------
+// Only count saved candidates whose profiles are
+// currently active. The SavedCandidate records remain
+// in the database so they automatically become visible
+// again if the candidate is reactivated.
 
-  // -----------------------------------------
-  // Saved candidate records
-  // -----------------------------------------
-  const savedCandidateRecords =
-    await SavedCandidate.find({
-      employer: userId,
+const savedCandidateRecords =
+  await SavedCandidate.find({
+    employer: userId,
+  })
+    .populate({
+      path: "candidate",
+      match: {
+        profileActive: true,
+      },
+      select:
+        "firstName workerTypes city province yearsExperience profilePhoto profileVerified profileActive",
     })
-      .populate({
-        path: "candidate",
-        select:
-          "firstName workerTypes city province yearsExperience profilePhoto profileVerified",
-      })
-      .sort({
-        createdAt: -1,
-      })
-      .limit(10);
+    .sort({
+      createdAt: -1,
+    })
+    .limit(10);
+
+// Remove saved records whose candidate is inactive.
+// Mongoose returns candidate as null when the populate
+// match condition fails.
+const activeSavedCandidateRecords =
+  savedCandidateRecords.filter(
+    (record) => record.candidate !== null
+  );
+
+const savedCandidates =
+  activeSavedCandidateRecords.length;
 
   // -----------------------------------------
   // Recommended candidates

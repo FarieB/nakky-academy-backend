@@ -8,8 +8,6 @@ const {
   createCandidateProfile,
   getCandidateProfile,
   updateCandidateProfile,
-  activateCandidateProfile,
-  deactivateCandidateProfile,
   adminActivateCandidate,
   adminDeactivateCandidate,
   getCandidateById,
@@ -47,8 +45,6 @@ const {
 router.post("/candidate", protect, createCandidateProfile);
 router.get("/candidate", protect, getCandidateProfile);
 router.put("/candidate", protect, updateCandidateProfile);
-router.put("/candidate/activate", protect, activateCandidateProfile);
-router.put("/candidate/deactivate", protect, deactivateCandidateProfile);
 router.get("/candidate/:id", protect, getCandidateById);
 router.get(
   "/candidate/:candidateId/document/:type",

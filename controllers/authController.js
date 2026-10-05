@@ -1,6 +1,6 @@
 const User = require("../models/user");
-const EmployerProfile = require("../models/employerProfile");
-const CandidateProfile = require("../models/candidateProfile");
+const EmployerProfile = require("../models/EmployerProfile");
+const CandidateProfile = require("../models/CandidateProfile");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const {

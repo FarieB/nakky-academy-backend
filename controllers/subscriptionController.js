@@ -93,7 +93,7 @@ exports.getMySubscription = async (req, res) => {
             });
         }
 
-        const user = await require("../models/User")
+        const user = await require("../models/user")
             .findById(req.user._id)
             .select(
                 "_id subscriptionStatus subscriptionExpiry currentSubscription"

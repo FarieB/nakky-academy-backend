@@ -4963,7 +4963,7 @@ exports.downloadCertificate = async (req, res) => {
     // route instead of the old website URL.
     // =====================================================
     const verificationURL =
-      `nakkyacademymobile://verify-certificate/${encodeURIComponent(
+      `nakkyacademy://verify-certificate/${encodeURIComponent(
         certificateNumber
       )}`;
 

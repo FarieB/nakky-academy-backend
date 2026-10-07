@@ -4774,918 +4774,1379 @@ exports.issueCertificate = async (
 };
 
 
-/**
- * ============================================================
- * DOWNLOAD CERTIFICATE
- * ============================================================
- */
-exports.downloadCertificate = async (
-    req,
-    res
-) => {
-    try {
-        const path = require("path");
+exports.downloadCertificate = async (req, res) => {
+    console.log(
+        "DOWNLOAD CERTIFICATE REQUEST:",
+        req.params.courseId
+    );
 
-        const course =
-            await Course.findById(
-                req.params.courseId
-            );
+    try {
+        // =====================================================
+        // 1. FIND COURSE
+        // =====================================================
+        const course = await Course.findById(
+            req.params.courseId
+        );
+
+        console.log(
+            "CERTIFICATE COURSE FOUND:",
+            !!course,
+            course?._id?.toString(),
+            course?.title
+        );
 
         if (!course) {
+            console.log(
+                "CERTIFICATE 404: COURSE NOT FOUND"
+            );
+
             return res.status(404).json({
-                message:
-                    "Course not found.",
+                message: "Course not found.",
             });
         }
 
-        // ====================================================
-        // FIND PAID ENROLLMENT
-        // ====================================================
-
+        // =====================================================
+        // 2. FIND PAID ENROLLMENT
+        // =====================================================
         const enrollment =
             await Enrollment.findOne({
                 student: req.user._id,
-                course: course._id,
+                course: req.params.courseId,
                 paymentStatus: "paid",
-            }).populate(
-                "student",
-                "name email"
-            );
+            });
+
+        console.log(
+            "CERTIFICATE ENROLLMENT FOUND:",
+            !!enrollment,
+            enrollment?._id?.toString(),
+            enrollment?.paymentStatus,
+            enrollment?.completed,
+            enrollment?.certificateIssued
+        );
 
         if (!enrollment) {
-            return res.status(403).json({
+            console.log(
+                "CERTIFICATE 404: PAID ENROLLMENT NOT FOUND"
+            );
+
+            return res.status(404).json({
                 message:
-                    "You are not enrolled in this course.",
+                    "Paid course enrollment not found.",
             });
         }
 
-        // ====================================================
-        // CHECK CERTIFICATE SETTING
-        // ====================================================
+    // =====================================================
+    // 3. CERTIFICATE MUST BE ENABLED
+    // =====================================================
+    if (course.certificateEnabled === false) {
+      return res.status(400).json({
+        message: "Certificates are not enabled for this course.",
+      });
+    }
 
-        if (!course.certificate) {
-            return res.status(400).json({
-                message:
-                    "This course does not issue a certificate.",
-            });
+    // =====================================================
+    // 4. CHECK ELIGIBILITY
+    // =====================================================
+    const eligible =
+      enrollment.completed === true ||
+      enrollment.certificateIssued === true ||
+      Number(enrollment.progress || 0) >= 100;
+
+    if (!eligible) {
+      return res.status(400).json({
+        message:
+          "You are not yet eligible for a certificate. Please complete the course.",
+      });
+    }
+
+    // =====================================================
+    // 5. CREATE / PRESERVE CERTIFICATE NUMBER
+    // =====================================================
+    if (!enrollment.certificateNumber) {
+      enrollment.certificateNumber =
+        `NA-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+
+      enrollment.certificateIssued = true;
+      enrollment.completed = true;
+      enrollment.completedAt =
+        enrollment.completedAt || new Date();
+
+      await enrollment.save();
+    } else if (!enrollment.certificateIssued) {
+      enrollment.certificateIssued = true;
+      await enrollment.save();
+    }
+
+    const certificateNumber = enrollment.certificateNumber;
+
+    // =====================================================
+    // 6. STUDENT NAME
+    // =====================================================
+    const studentName =
+      req.user.name ||
+      `${req.user.firstName || ""} ${req.user.surname || ""}`.trim() ||
+      "Student";
+
+    // =====================================================
+    // 7. COMPLETION DATE
+    // =====================================================
+    const completionDate = new Date(
+      enrollment.completedAt || new Date()
+    ).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+
+    // =====================================================
+    // 8. EXACT COURSE WORDING
+    // =====================================================
+    const courseTitle = String(course.title || "").toLowerCase();
+
+    let certificateIntro = "";
+    let certificateItems = [];
+
+    if (
+      courseTitle.includes("caregiving") ||
+      courseTitle.includes("caregiver")
+    ) {
+      certificateIntro =
+        "Has successfully completed the online Caregiving Training Course dedicated to the Elderly, including:";
+
+      certificateItems = [
+        "Palliative Care-Terminal Illness.",
+        "After Surgery Care. Frail Care.",
+        "Dementia- Alzheimer's and Depression.",
+        "Chronic Conditions- Cancer, Diabetes, Stroke, Heart Diseases.",
+        "Mobility, Bathing, Feeding and health care.",
+        "Medical Emergencies.",
+      ];
+    } else if (
+      courseTitle.includes("au pair") ||
+      courseTitle.includes("child care") ||
+      courseTitle.includes("childcare")
+    ) {
+      certificateIntro =
+        "Has successfully completed the online Au Pair Training Course dedicated to the Children, toddlers and Infants, including:";
+
+      certificateItems = [
+        "All domains of Child Development.",
+        "Food & nutrition, child health and hygiene. Common illness and allergies.",
+        "Feeding, sleeping, crying, holding and nappy changing.",
+        "Autism Spectrum Disorder. Attention Deficit Hyperactivity Disorder.",
+        "Down Syndrome, Cerebral Palsy and Epilepsy.",
+        "Medical Emergencies.",
+      ];
+    } else {
+      certificateIntro =
+        `Has successfully completed the online ${course.title || "Training Course"}.`;
+
+      const fallbackText =
+        course.description ||
+        course.shortDescription ||
+        "";
+
+      certificateItems = fallbackText
+        ? fallbackText
+            .split(/\r?\n/)
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .slice(0, 6)
+        : [];
+    }
+
+    // =====================================================
+    // 9. QR CODE
+    //
+    // IMPORTANT:
+    // This now opens the Nakky Academy mobile verification
+    // route instead of the old website URL.
+    // =====================================================
+    const verificationURL =
+      `nakkyacademymobile://verify-certificate/${encodeURIComponent(
+        certificateNumber
+      )}`;
+
+    const qrCode = await QRCode.toDataURL(verificationURL, {
+      margin: 1,
+      width: 220,
+      errorCorrectionLevel: "H",
+    });
+
+    const qrBuffer = Buffer.from(
+      qrCode.replace(/^data:image\/png;base64,/, ""),
+      "base64"
+    );
+
+    // =====================================================
+    // 10. CERTIFICATE ASSETS
+    // =====================================================
+    const logoPath = path.join(
+      __dirname,
+      "../assets/certificates/logo.png"
+    );
+
+    const signaturePath = path.join(
+      __dirname,
+      "../assets/certificates/signature.png"
+    );
+
+    // =====================================================
+    // 11. CREATE A4 PDF
+    // =====================================================
+    const doc = new PDFDocument({
+      size: "A4",
+      margin: 0,
+      autoFirstPage: true,
+      info: {
+        Title: "Nakky Academy Certificate",
+        Author: "Nakky Academy",
+        Subject: "Certificate of Completion",
+        Keywords: certificateNumber,
+      },
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="Nakky-Academy-Certificate-${certificateNumber}.pdf"`
+    );
+    res.setHeader("Cache-Control", "no-store");
+
+    doc.pipe(res);
+
+    // =====================================================
+    // 12. A4 DIMENSIONS
+    // =====================================================
+    const pageWidth = 595.28;
+    const pageHeight = 841.89;
+
+    // =====================================================
+    // 13. NAKKY COLOUR PALETTE
+    // =====================================================
+    const PINK = "#E91E8F";
+    const HOT_PINK = "#F00087";
+    const GOLD = "#F4C400";
+    const GOLD_DARK = "#D5A900";
+    const BLACK = "#090909";
+    const WHITE = "#FFFFFF";
+    const SOFT_PINK = "#FFF5FA";
+    const LIGHT_PINK = "#FCE5F1";
+    const PURPLE = "#522C91";
+    const GREY = "#555555";
+
+    // =====================================================
+    // 14. BACKGROUND
+    // =====================================================
+    doc.rect(0, 0, pageWidth, pageHeight)
+      .fill(WHITE);
+
+    // Very subtle pink background
+    doc.save();
+
+    doc.opacity(0.08);
+
+    doc
+      .moveTo(-30, 250)
+      .bezierCurveTo(
+        120, 130,
+        230, 160,
+        330, 240
+      )
+      .bezierCurveTo(
+        440, 330,
+        510, 250,
+        650, 180
+      )
+      .lineTo(650, 520)
+      .bezierCurveTo(
+        510, 610,
+        400, 570,
+        300, 500
+      )
+      .bezierCurveTo(
+        190, 420,
+        80, 450,
+        -30, 540
+      )
+      .closePath()
+      .fill(PINK);
+
+    doc.restore();
+
+    // =====================================================
+    // 15. INNER GOLD BORDER
+    // =====================================================
+    doc
+      .lineWidth(1.2)
+      .strokeColor(GOLD)
+      .roundedRect(23, 23, pageWidth - 46, pageHeight - 46, 2)
+      .stroke();
+
+    doc
+      .lineWidth(0.7)
+      .strokeColor(PINK)
+      .roundedRect(29, 29, pageWidth - 58, pageHeight - 58, 2)
+      .stroke();
+
+    // =====================================================
+    // 16. TOP DECORATIVE SWEEP
+    // =====================================================
+
+    // Black sweep
+    doc.save();
+
+    doc
+      .moveTo(-30, 0)
+      .lineTo(205, 0)
+      .bezierCurveTo(
+        155, 18,
+        115, 45,
+        60, 92
+      )
+      .bezierCurveTo(
+        30, 118,
+        8, 130,
+        -30, 140
+      )
+      .closePath()
+      .fill(BLACK);
+
+    // Pink sweep
+    doc
+      .moveTo(0, 0)
+      .lineTo(300, 0)
+      .bezierCurveTo(
+        235, 20,
+        150, 55,
+        65, 125
+      )
+      .lineTo(0, 145)
+      .closePath()
+      .fill(PINK);
+
+    // Gold sweep
+    doc
+      .moveTo(0, 0)
+      .lineTo(265, 0)
+      .bezierCurveTo(
+        190, 25,
+        120, 63,
+        40, 122
+      )
+      .lineWidth(4)
+      .strokeColor(GOLD)
+      .stroke();
+
+    // Right-side pink decorative sweep
+    doc
+      .moveTo(pageWidth, 0)
+      .lineTo(pageWidth - 110, 0)
+      .bezierCurveTo(
+        pageWidth - 75,
+        40,
+        pageWidth - 35,
+        80,
+        pageWidth,
+        120
+      )
+      .lineTo(pageWidth, 0)
+      .closePath()
+      .fill(PINK);
+
+    doc.restore();
+
+    // =====================================================
+    // 17. SUBTLE DECORATIVE LEAF / CURVE LINES
+    // =====================================================
+    doc.save();
+    doc.opacity(0.13);
+
+    doc
+      .lineWidth(1)
+      .strokeColor(PINK);
+
+    doc
+      .moveTo(45, 125)
+      .bezierCurveTo(
+        115, 90,
+        170, 100,
+        210, 145
+      )
+      .stroke();
+
+    doc
+      .moveTo(45, 140)
+      .bezierCurveTo(
+        105, 105,
+        150, 120,
+        190, 160
+      )
+      .stroke();
+
+    doc
+      .moveTo(pageWidth - 45, 125)
+      .bezierCurveTo(
+        pageWidth - 115,
+        90,
+        pageWidth - 170,
+        100,
+        pageWidth - 210,
+        145
+      )
+      .stroke();
+
+    doc.restore();
+
+    // =====================================================
+    // 18. NAKKY ACADEMY LOGO
+    // =====================================================
+    if (fs.existsSync(logoPath)) {
+      doc.image(
+        logoPath,
+        (pageWidth - 125) / 2,
+        35,
+        {
+          width: 125,
+          height: 88,
+          fit: [125, 88],
+          align: "center",
+          valign: "center",
         }
+      );
+    }
 
-        // ====================================================
-        // VERIFY COURSE REQUIREMENTS
-        // ====================================================
-
-        const eligibility =
-            checkCertificateEligibility(
-                course,
-                enrollment
-            );
-
-        if (!eligibility.eligible) {
-            return res.status(400).json({
-                message:
-                    eligibility.reason,
-            });
+    // =====================================================
+    // 19. TAGLINE
+    // =====================================================
+    doc
+      .font("Helvetica")
+      .fontSize(7.2)
+      .fillColor(BLACK)
+      .text(
+        "S K I L L S   T O D A Y     B R I G H T E R   T O M O R R O W S",
+        0,
+        126,
+        {
+          width: pageWidth,
+          align: "center",
+          characterSpacing: 1.2,
         }
+      );
 
-        // ====================================================
-        // GENERATE / PRESERVE CERTIFICATE NUMBER
-        // ====================================================
+    // Pink underline
+    doc
+      .moveTo(190, 142)
+      .lineTo(405, 142)
+      .lineWidth(2)
+      .strokeColor(PINK)
+      .stroke();
 
-        if (
-            !enrollment.certificateNumber
-        ) {
-            enrollment.certificateNumber =
-                `NA-${Date.now()}-${Math.floor(
-                    Math.random() * 100000
-                )}`;
+    // Gold small underline
+    doc
+      .moveTo(268, 147)
+      .lineTo(327, 147)
+      .lineWidth(1.5)
+      .strokeColor(GOLD)
+      .stroke();
 
-            enrollment.certificateIssued =
-                true;
-
-            enrollment.completed =
-                true;
-
-            enrollment.completedAt =
-                enrollment.completedAt ||
-                new Date();
-
-            await enrollment.save();
-        } else if (
-            !enrollment.certificateIssued
-        ) {
-            enrollment.certificateIssued =
-                true;
-
-            await enrollment.save();
+// =====================================================
+// 20. TOP RIGHT MESSAGE
+// =====================================================
+    doc
+    .font("Times-Italic")
+    .fontSize(11)
+    .fillColor(PINK)
+    .text(
+        "People\nSkills\nBetter\nLives",
+        390,
+        38,
+        {
+        width: 125,
+        align: "right",
+        lineGap: 0,
         }
+    );
 
-        const certificateNumber =
-            enrollment.certificateNumber;
+    doc
+    .moveTo(420, 91)
+    .lineTo(510, 91)
+    .lineWidth(1.5)
+    .strokeColor(BLACK)
+    .stroke();
 
-        // ====================================================
-        // STUDENT
-        // ====================================================
-
-        const studentName =
-            enrollment.student?.name ||
-            "Student";
-
-        // ====================================================
-        // COMPLETION DATE
-        // ====================================================
-
-        const certificateDate =
-            enrollment.completedAt ||
-            new Date();
-
-        const formattedDate =
-            certificateDate.toLocaleDateString(
-                "en-ZA",
-                {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                }
-            );
-
-        // ====================================================
-        // COURSE-SPECIFIC CERTIFICATE CONTENT
-        // ====================================================
-
-        const title =
-            String(
-                course.title || ""
-            ).toLowerCase();
-
-        let certificateIntro = "";
-        let certificateBody = "";
-
-        // ----------------------------------------------------
-        // CAREGIVING
-        // ----------------------------------------------------
-
-        if (
-            title.includes("caregiv")
-        ) {
-            certificateIntro =
-                "Has successfully completed the online Caregiving Training Course dedicated to the Elderly, including:";
-
-            certificateBody =
-                "Palliative Care-Terminal Illness.\n" +
-                "After Surgery Care. Frail Care.\n" +
-                "Dementia- Alzheimer's and Depression.\n" +
-                "Chronic Conditions- Cancer, Diabetes, Stroke, Heart Diseases.\n" +
-                "Mobility, Bathing, Feeding and health care.\n" +
-                "Medical Emergencies.";
+    // =====================================================
+    // 21. MAIN CERTIFICATE TITLE
+    // =====================================================
+    doc
+      .font("Times-Bold")
+      .fontSize(48)
+      .fillColor(BLACK)
+      .text(
+        "CERTIFICATE",
+        0,
+        157,
+        {
+          width: pageWidth,
+          align: "center",
         }
+      );
 
-        // ----------------------------------------------------
-        // AU PAIR / CHILD CARE
-        // ----------------------------------------------------
-
-        else if (
-            title.includes("au pair") ||
-            title.includes("child care") ||
-            title.includes("childcare")
-        ) {
-            certificateIntro =
-                "Has successfully completed the online Au Pair Training Course dedicated to the Children, toddlers and Infants, including:";
-
-            certificateBody =
-                "All domains of Child Development.\n" +
-                "Food & nutrition, child health and hygiene. Common illness and allergies.\n" +
-                "Feeding, sleeping, crying, holding and nappy changing.\n" +
-                "Autism Spectrum Disorder. Attention Deficit Hyperactivity Disorder.\n" +
-                "Down Syndrome, Cerebral Palsy and Epilepsy.\n" +
-                "Medical Emergencies.";
+    // =====================================================
+    // 22. OF COMPLETION
+    // =====================================================
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(25)
+      .fillColor(PINK)
+      .text(
+        "OF COMPLETION",
+        0,
+        212,
+        {
+          width: pageWidth,
+          align: "center",
+          characterSpacing: 0.5,
         }
+      );
 
-        // ----------------------------------------------------
-        // FALLBACK FOR FUTURE COURSES
-        // ----------------------------------------------------
+    // Lines beside title
+    doc
+      .moveTo(90, 228)
+      .lineTo(180, 228)
+      .lineWidth(2)
+      .strokeColor(PINK)
+      .stroke();
 
-        else {
-            certificateIntro =
-                `Has successfully completed the online ${course.title || "Training Course"}.`;
+    doc
+      .moveTo(415, 228)
+      .lineTo(505, 228)
+      .lineWidth(2)
+      .strokeColor(PINK)
+      .stroke();
 
-            certificateBody =
-                course.description ||
-                course.shortDescription ||
-                "";
+    doc
+    .moveTo(196, 245)
+    .lineTo(235, 245)
+    .lineWidth(3)
+    .strokeColor(GOLD)
+    .stroke();
+
+    doc
+    .moveTo(360, 245)
+    .lineTo(399, 245)
+    .lineWidth(3)
+    .strokeColor(GOLD)
+    .stroke();
+
+    // =====================================================
+    // 23. CERTIFY TEXT
+    // =====================================================
+    doc
+      .font("Helvetica")
+      .fontSize(14)
+      .fillColor(BLACK)
+      .text(
+        "T H I S   I S   T O   C E R T I F Y   T H A T",
+        0,
+        255,
+        {
+          width: pageWidth,
+          align: "center",
+          characterSpacing: 1.4,
         }
+      );
 
-        // ====================================================
-        // QR VERIFICATION
-        // ====================================================
+    // =====================================================
+    // 24. STUDENT NAME
+    // =====================================================
+    doc
+      .font("Times-Italic")
+      .fontSize(
+        studentName.length > 25
+          ? 29
+          : 36
+      )
+      .fillColor(PINK)
+      .text(
+        studentName,
+        65,
+        278,
+        {
+          width: pageWidth - 130,
+          align: "center",
+          lineGap: 0,
+        }
+      );
 
-        const verificationURL =
-            `https://nakkyacademy.co.za/verify-certificate/${certificateNumber}`;
+    // Gold name underline
+    doc
+      .moveTo(145, 326)
+      .lineTo(pageWidth - 145, 326)
+      .lineWidth(1.8)
+      .strokeColor(GOLD)
+      .stroke();
 
-        const qrCode =
-            await QRCode.toDataURL(
-                verificationURL,
-                {
-                    margin: 1,
-                    width: 180,
-                }
-            );
+    // =====================================================
+    // 25. COURSE INTRO
+    // =====================================================
+    doc
+      .font("Helvetica")
+      .fontSize(11.5)
+      .fillColor(BLACK)
+      .text(
+        certificateIntro,
+        65,
+        345,
+        {
+          width: pageWidth - 130,
+          align: "center",
+          lineGap: 2,
+        }
+      );
 
-        // ====================================================
-        // CERTIFICATE ASSETS
-        // ====================================================
+    // =====================================================
+    // 26. COURSE CONTENT ICONS
+    // =====================================================
+    const iconColors = [
+      PINK,
+      GOLD,
+      PURPLE,
+      PINK,
+      GOLD_DARK,
+      PURPLE,
+    ];
 
-        const logoPath =
-            path.join(
-                __dirname,
-                "../assets/certificates/logo.png"
-            );
 
-        const signaturePath =
-            path.join(
-                __dirname,
-                "../assets/certificates/signature.png"
-            );
+    let itemY = 389;
 
-        // ====================================================
-        // A4 PORTRAIT
-        // ====================================================
+    const itemX = 145;
+    const iconX = 128;
+    const textWidth = 390;
 
-        const doc =
-            new PDFDocument({
-                size: "A4",
-                layout: "portrait",
-                margin: 0,
-                autoFirstPage: true,
-            });
+    certificateItems
+      .slice(0, 6)
+      .forEach((item, index) => {
+        const circleY = itemY + 7;
 
-        const pageWidth =
-            doc.page.width;
+        // =====================================================
+        // PROFESSIONAL VECTOR ICONS
+        // =====================================================
+        doc.save();
 
-        const pageHeight =
-            doc.page.height;
+        doc.lineWidth(1.5);
+        doc.strokeColor(WHITE);
+        doc.fillColor(WHITE);
 
-        // ====================================================
-        // RESPONSE HEADERS
-        // ====================================================
-
-        res.setHeader(
-            "Content-Type",
-            "application/pdf"
-        );
-
-        res.setHeader(
-            "Content-Disposition",
-            `attachment; filename="Nakky-Academy-Certificate-${certificateNumber}.pdf"`
-        );
-
-        doc.pipe(res);
-
-        // ====================================================
-        // COLOURS
-        // ====================================================
-
-        const purple =
-            "#4E4787";
-
-        const darkPurple =
-            "#25263F";
-
-        const pink =
-            "#F04FA8";
-
-        const brightPink =
-            "#F45DB1";
-
-        const gold =
-            "#FFD21C";
-
-        const darkGold =
-            "#C99A20";
-
-        const cream =
-            "#FFFDF8";
-
-        const black =
-            "#111111";
-
-        const lightPink =
-            "#F9E8F2";
-
-        // ====================================================
-        // BACKGROUND
-        // ====================================================
+        if (index === 0) {
+        // CARE / PALLIATIVE CARE - person
+        doc.circle(iconX, circleY - 4, 2.5).fill();
 
         doc
-            .rect(
-                0,
-                0,
-                pageWidth,
-                pageHeight
-            )
-            .fill(cream);
-
-        // ====================================================
-        // DECORATIVE CORNERS
-        // ====================================================
-
-        // ----------------------------------------------------
-        // TOP LEFT - PURPLE
-        // ----------------------------------------------------
+            .moveTo(iconX, circleY - 1)
+            .lineTo(iconX, circleY + 5)
+            .lineWidth(2)
+            .stroke();
 
         doc
-            .save()
-            .fillColor(purple)
-            .polygon(
-                [0, 0],
-                [48, 0],
-                [0, 48]
-            )
-            .fill()
-            .restore();
-
-        // ----------------------------------------------------
-        // TOP LEFT - PINK
-        // ----------------------------------------------------
+            .moveTo(iconX - 5, circleY + 1)
+            .lineTo(iconX + 5, circleY + 1)
+            .lineWidth(1.5)
+            .stroke();
 
         doc
-            .save()
-            .fillColor(brightPink)
-            .polygon(
-                [0, 0],
-                [82, 0],
-                [0, 82]
-            )
-            .fill()
-            .restore();
-
-        // ----------------------------------------------------
-        // TOP LEFT - GOLD
-        // ----------------------------------------------------
+            .moveTo(iconX, circleY + 5)
+            .lineTo(iconX - 4, circleY + 8)
+            .lineWidth(1.5)
+            .stroke();
 
         doc
-            .save()
-            .fillColor(gold)
-            .polygon(
-                [0, 0],
-                [116, 0],
-                [0, 116]
-            )
-            .fill()
-            .restore();
+            .moveTo(iconX, circleY + 5)
+            .lineTo(iconX + 4, circleY + 8)
+            .lineWidth(1.5)
+            .stroke();
 
-        // ----------------------------------------------------
-        // TOP RIGHT - PURPLE
-        // ----------------------------------------------------
+        } else if (index === 1) {
+        // MEDICAL / SURGERY - medical cross
+        doc
+            .rect(iconX - 2.5, circleY - 7, 5, 14)
+            .fill();
 
         doc
-            .save()
-            .fillColor("#9222B4")
-            .polygon(
-                [pageWidth - 155, 0],
-                [pageWidth, 0],
-                [pageWidth, 155]
-            )
-            .fill()
-            .restore();
+            .rect(iconX - 7, circleY - 2.5, 14, 5)
+            .fill();
 
-        // ----------------------------------------------------
-        // BOTTOM LEFT - PINK
-        // ----------------------------------------------------
+        } else if (index === 2) {
+        // DEMENTIA / BRAIN - simplified brain
+        doc
+            .circle(iconX - 3, circleY - 1, 4)
+            .fill();
 
         doc
-            .save()
-            .fillColor(brightPink)
-            .polygon(
-                [0, pageHeight - 100],
-                [0, pageHeight],
-                [150, pageHeight]
-            )
-            .fill()
-            .restore();
-
-        // ----------------------------------------------------
-        // BOTTOM RIGHT - GOLD
-        // ----------------------------------------------------
+            .circle(iconX + 3, circleY - 1, 4)
+            .fill();
 
         doc
-            .save()
-            .fillColor(gold)
-            .polygon(
-                [pageWidth - 100, pageHeight],
-                [pageWidth, pageHeight - 100],
-                [pageWidth, pageHeight]
-            )
-            .fill()
-            .restore();
-
-        // ----------------------------------------------------
-        // BOTTOM RIGHT - PURPLE
-        // ----------------------------------------------------
+            .circle(iconX - 3, circleY + 4, 3)
+            .fill();
 
         doc
-            .save()
-            .fillColor(purple)
-            .polygon(
-                [pageWidth - 45, pageHeight],
-                [pageWidth, pageHeight - 45],
-                [pageWidth, pageHeight]
-            )
-            .fill()
-            .restore();
+            .circle(iconX + 3, circleY + 4, 3)
+            .fill();
 
-        // ====================================================
-        // SUBTLE DECORATIVE GEOMETRY
-        // ====================================================
+        } else if (index === 3) {
+        // CHRONIC CONDITIONS - heart
+        doc
+            .circle(iconX - 3, circleY - 2, 3.5)
+            .fill();
 
         doc
-            .save()
-            .lineWidth(1)
-            .strokeColor("#F5DDEB");
+            .circle(iconX + 3, circleY - 2, 3.5)
+            .fill();
 
-        for (
-            let i = 0;
-            i < 7;
-            i++
-        ) {
-            const y =
-                22 + i * 18;
+        doc
+            .moveTo(iconX - 6, circleY)
+            .lineTo(iconX, circleY + 7)
+            .lineTo(iconX + 6, circleY)
+            .fill();
 
-            doc
-                .moveTo(
-                    pageWidth - 220,
-                    y
-                )
-                .lineTo(
-                    pageWidth - 80,
-                    y
-                )
-                .stroke();
+        } else if (index === 4) {
+        // MOBILITY - walking person
+        doc.circle(iconX, circleY - 5, 2.5).fill();
+
+        doc
+            .moveTo(iconX, circleY - 2)
+            .lineTo(iconX - 2, circleY + 3)
+            .lineWidth(2)
+            .stroke();
+
+        doc
+            .moveTo(iconX - 2, circleY + 3)
+            .lineTo(iconX - 6, circleY + 7)
+            .lineWidth(1.5)
+            .stroke();
+
+        doc
+            .moveTo(iconX - 2, circleY + 3)
+            .lineTo(iconX + 3, circleY + 7)
+            .lineWidth(1.5)
+            .stroke();
+
+        doc
+            .moveTo(iconX, circleY)
+            .lineTo(iconX + 5, circleY - 3)
+            .lineWidth(1.5)
+            .stroke();
+
+        } else {
+        // MEDICAL EMERGENCIES - first aid cross
+        doc
+            .rect(iconX - 2.5, circleY - 7, 5, 14)
+            .fill();
+
+        doc
+            .rect(iconX - 7, circleY - 2.5, 14, 5)
+            .fill();
         }
 
         doc.restore();
 
-        // ====================================================
-        // LOGO
-        // ====================================================
-
-        try {
-            doc.image(
-                logoPath,
-                pageWidth / 2 - 52,
-                27,
-                {
-                    width: 104,
-                }
-            );
-        } catch (error) {
-            console.error(
-                "Certificate logo error:",
-                error
-            );
-        }
-
-        // ====================================================
-        // MAIN TITLE
-        // ====================================================
-
+        // Content
         doc
-            .font("Times-Bold")
-            .fontSize(52)
-            .fillColor(purple)
-            .text(
-                "CERTIFICATE",
-                0,
-                137,
-                {
-                    width: pageWidth,
-                    align: "center",
-                    characterSpacing: 1.5,
-                }
-            );
-
-        doc
-            .font("Helvetica")
-            .fontSize(25)
-            .fillColor(black)
-            .text(
-                "OF COMPLETION",
-                0,
-                199,
-                {
-                    width: pageWidth,
-                    align: "center",
-                }
-            );
-
-        // ====================================================
-        // INTRODUCTION
-        // ====================================================
-
-        doc
-            .font("Helvetica")
-            .fontSize(17)
-            .fillColor(black)
-            .text(
-                "This is to certify that",
-                0,
-                266,
-                {
-                    width: pageWidth,
-                    align: "center",
-                }
-            );
-
-        // ====================================================
-        // STUDENT NAME
-        // ====================================================
-
-        /*
-         * Keep the name inside a controlled area so long
-         * names cannot collide with the borders.
-         */
-
-        let nameFontSize = 39;
-
-        if (
-            studentName.length > 28
-        ) {
-            nameFontSize = 32;
-        }
-
-        if (
-            studentName.length > 38
-        ) {
-            nameFontSize = 27;
-        }
-
-        doc
-            .font("Times-Italic")
-            .fontSize(nameFontSize)
-            .fillColor(purple)
-            .text(
-                studentName,
-                45,
-                298,
-                {
-                    width:
-                        pageWidth - 90,
-                    align: "center",
-                    lineBreak: false,
-                }
-            );
-
-        // ====================================================
-        // NAME LINE
-        // ====================================================
-
-        doc
-            .moveTo(
-                80,
-                350
-            )
-            .lineTo(
-                pageWidth - 80,
-                350
-            )
-            .lineWidth(1)
-            .strokeColor(black)
-            .stroke();
-
-        // ====================================================
-        // CERTIFICATE DESCRIPTION
-        // ====================================================
-
-        const textX = 62;
-        const textWidth =
-            pageWidth - 124;
-
-        doc
-            .font("Helvetica")
-            .fontSize(12.5)
-            .fillColor(black)
-            .text(
-                certificateIntro,
-                textX,
-                368,
-                {
-                    width: textWidth,
-                    align: "center",
-                    lineGap: 2,
-                }
-            );
-
-        // ====================================================
-        // COURSE DESCRIPTION
-        // ====================================================
-
-        const bodyY =
-            405;
-
-        doc
-            .font("Helvetica")
-            .fontSize(11.3)
-            .fillColor(black)
-            .text(
-                certificateBody,
-                textX,
-                bodyY,
-                {
-                    width: textWidth,
-                    align: "center",
-                    lineGap: 3.2,
-                }
-            );
-
-        // ====================================================
-        // GOLD SEAL
-        // ====================================================
-
-        const sealX =
-            pageWidth / 2;
-
-        const sealY =
-            570;
-
-        // Outer rays
-        for (
-            let i = 0;
-            i < 16;
-            i++
-        ) {
-            const angle =
-                (Math.PI * 2 * i) /
-                16;
-
-            const x1 =
-                sealX +
-                Math.cos(angle) * 35;
-
-            const y1 =
-                sealY +
-                Math.sin(angle) * 35;
-
-            const x2 =
-                sealX +
-                Math.cos(angle) * 44;
-
-            const y2 =
-                sealY +
-                Math.sin(angle) * 44;
-
-            doc
-                .save()
-                .lineWidth(4)
-                .strokeColor("#E3B83E")
-                .moveTo(
-                    x1,
-                    y1
-                )
-                .lineTo(
-                    x2,
-                    y2
-                )
-                .stroke()
-                .restore();
-        }
-
-        doc
-            .save()
-            .fillColor("#E7B93E")
-            .circle(
-                sealX,
-                sealY,
-                36
-            )
-            .fill()
-            .restore();
-
-        doc
-            .save()
-            .fillColor("#F7D875")
-            .circle(
-                sealX,
-                sealY,
-                28
-            )
-            .fill()
-            .restore();
-
-        doc
-            .save()
-            .fillColor("#C8961E")
-            .circle(
-                sealX,
-                sealY,
-                19
-            )
-            .fill()
-            .restore();
-
-        doc
-            .font("Helvetica-Bold")
-            .fontSize(6)
-            .fillColor("#FFFFFF")
-            .text(
-                "NAKKY",
-                sealX - 18,
-                sealY - 5,
-                {
-                    width: 36,
-                    align: "center",
-                }
-            );
-
-        doc
-            .fontSize(5)
-            .text(
-                "ACADEMY",
-                sealX - 18,
-                sealY + 4,
-                {
-                    width: 36,
-                    align: "center",
-                }
-            );
-
-        // ====================================================
-        // SIGNATURE
-        // ====================================================
-
-        try {
-            doc.image(
-                signaturePath,
-                92,
-                493,
-                {
-                    width: 115,
-                    height: 62,
-                    fit: [
-                        115,
-                        62,
-                    ],
-                }
-            );
-        } catch (error) {
-            console.error(
-                "Certificate signature error:",
-                error
-            );
-        }
-
-        doc
-            .moveTo(
-                72,
-                557
-            )
-            .lineTo(
-                227,
-                557
-            )
-            .lineWidth(1)
-            .strokeColor(black)
-            .stroke();
-
-        doc
-            .font("Helvetica")
-            .fontSize(11)
-            .fillColor(black)
-            .text(
-                "INSTRUCTOR",
-                72,
-                563,
-                {
-                    width: 155,
-                    align: "center",
-                }
-            );
-
-        // ====================================================
-        // DATE
-        // ====================================================
-
-        doc
-            .font("Helvetica")
-            .fontSize(14)
-            .fillColor(black)
-            .text(
-                formattedDate,
-                pageWidth - 232,
-                520,
-                {
-                    width: 165,
-                    align: "center",
-                }
-            );
-
-        doc
-            .moveTo(
-                pageWidth - 242,
-                557
-            )
-            .lineTo(
-                pageWidth - 67,
-                557
-            )
-            .lineWidth(1)
-            .strokeColor(black)
-            .stroke();
-
-        doc
-            .font("Helvetica")
-            .fontSize(11)
-            .text(
-                "DATE",
-                pageWidth - 242,
-                563,
-                {
-                    width: 175,
-                    align: "center",
-                }
-            );
-
-        // ====================================================
-        // QR CODE
-        // ====================================================
-
-        doc.image(
-            qrCode,
-            pageWidth - 112,
-            438,
+          .font("Helvetica")
+          .fontSize(9.7)
+          .fillColor(BLACK)
+          .text(
+            item,
+            itemX,
+            itemY,
             {
-                width: 62,
+              width: textWidth,
+              lineGap: 1.5,
             }
-        );
+          );
 
-        doc
-            .font("Helvetica")
-            .fontSize(6.5)
-            .fillColor(black)
-            .text(
-                "Scan to verify",
-                pageWidth - 119,
-                502,
-                {
-                    width: 76,
-                    align: "center",
-                }
-            );
+        itemY += 35;
+      });
 
-        // ====================================================
-        // CERTIFICATE NUMBER
-        // ====================================================
+    // =====================================================
+    // 27. BOTTOM INFORMATION AREA
+    // =====================================================
 
-        doc
-            .font("Times-Roman")
-            .fontSize(8.5)
-            .fillColor(black)
-            .text(
-                `Certificate No ${certificateNumber}`,
-                pageWidth - 205,
-                595,
-                {
-                    width: 175,
-                    align: "center",
-                }
-            );
+    const bottomY = 625;
 
-        // ====================================================
-        // COMPANY FOOTER
-        // ====================================================
+    // =====================================================
+    // 28. GOLD CERTIFICATION SEAL
+    // =====================================================
+    const sealX = 297;
+    const sealY = bottomY + 30;
 
-        doc
-            .font("Times-Roman")
-            .fontSize(8.5)
-            .fillColor(black)
-            .text(
-                "NAKKY ACADEMY (Pty) Ltd 2023 / 588028 / 07",
-                55,
-                595,
-                {
-                    width: 300,
-                    align: "left",
-                }
-            );
+    // Rays
+    for (let i = 0; i < 24; i++) {
+      const angle = (Math.PI * 2 * i) / 24;
 
-        // ====================================================
-        // FINISH
-        // ====================================================
+      const innerRadius = 31;
+      const outerRadius = i % 2 === 0 ? 45 : 40;
 
-        doc.end();
+      const x1 =
+        sealX + Math.cos(angle) * innerRadius;
+      const y1 =
+        sealY + Math.sin(angle) * innerRadius;
+
+      const x2 =
+        sealX + Math.cos(angle) * outerRadius;
+      const y2 =
+        sealY + Math.sin(angle) * outerRadius;
+
+      doc
+        .moveTo(x1, y1)
+        .lineTo(x2, y2)
+        .lineWidth(4)
+        .strokeColor(GOLD_DARK)
+        .stroke();
+    }
+
+    // Outer seal
+    doc
+      .circle(sealX, sealY, 32)
+      .fill(GOLD);
+
+    // Inner seal
+    doc
+      .circle(sealX, sealY, 25)
+      .fill(WHITE);
+
+    // Gold inner ring
+    doc
+      .circle(sealX, sealY, 22)
+      .lineWidth(2)
+      .strokeColor(GOLD_DARK)
+      .stroke();
+
+    // Seal text
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(6)
+      .fillColor(BLACK)
+      .text(
+        "NAKKY",
+        sealX - 20,
+        sealY - 9,
+        {
+          width: 40,
+          align: "center",
+        }
+      );
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(5)
+      .fillColor(PINK)
+      .text(
+        "ACADEMY",
+        sealX - 20,
+        sealY - 1,
+        {
+          width: 40,
+          align: "center",
+        }
+      );
+
+    doc
+      .font("Helvetica")
+      .fontSize(4.5)
+      .fillColor(BLACK)
+      .text(
+        "CERTIFIED",
+        sealX - 20,
+        sealY + 8,
+        {
+          width: 40,
+          align: "center",
+        }
+      );
+
+    // =====================================================
+    // 29. SIGNATURE
+    // =====================================================
+    const signatureY = 630;
+
+    if (fs.existsSync(signaturePath)) {
+      doc.image(
+        signaturePath,
+        68,
+        signatureY - 10,
+        {
+          width: 105,
+          height: 48,
+          fit: [105, 48],
+          align: "center",
+          valign: "center",
+        }
+      );
+    }
+
+    doc
+      .moveTo(55, signatureY + 40)
+      .lineTo(205, signatureY + 40)
+      .lineWidth(1)
+      .strokeColor(BLACK)
+      .stroke();
+
+    doc
+      .font("Helvetica")
+      .fontSize(8)
+      .fillColor(BLACK)
+      .text(
+        "I N S T R U C T O R",
+        55,
+        signatureY + 45,
+        {
+          width: 150,
+          align: "center",
+          characterSpacing: 1,
+        }
+      );
+
+    // =====================================================
+    // 30. DATE
+    // =====================================================
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor(BLACK)
+      .text(
+        completionDate,
+        380,
+        signatureY + 5,
+        {
+          width: 145,
+          align: "center",
+        }
+      );
+
+    doc
+      .moveTo(375, signatureY + 40)
+      .lineTo(525, signatureY + 40)
+      .lineWidth(1)
+      .strokeColor(BLACK)
+      .stroke();
+
+    doc
+      .font("Helvetica")
+      .fontSize(8)
+      .fillColor(BLACK)
+      .text(
+        "D A T E",
+        375,
+        signatureY + 45,
+        {
+          width: 150,
+          align: "center",
+          characterSpacing: 1.5,
+        }
+      );
+
+    // =====================================================
+    // 31. QR CODE
+    // =====================================================
+    const qrSize = 72;
+    const qrX = pageWidth - 105;
+    const qrY = 680;
+
+    doc.image(
+      qrBuffer,
+      qrX,
+      qrY,
+      {
+        width: qrSize,
+        height: qrSize,
+      }
+    );
+
+    doc
+      .font("Helvetica")
+      .fontSize(6.5)
+      .fillColor(BLACK)
+      .text(
+        "Scan to verify",
+        qrX - 3,
+        qrY + qrSize + 3,
+        {
+          width: qrSize + 6,
+          align: "center",
+        }
+      );
+
+    // =====================================================
+    // 32. CERTIFICATE NUMBER
+    // =====================================================
+    doc
+    .font("Helvetica")
+    .fontSize(6.3)
+    .fillColor(BLACK)
+    .text(
+        `Certificate No. ${certificateNumber}`,
+        330,
+        775,
+        {
+        width: 185,
+        align: "center",
+        }
+    );
+
+    // =====================================================
+    // 33. COMPANY INFORMATION
+    // =====================================================
+    doc
+      .font("Helvetica")
+      .fontSize(7)
+      .fillColor(BLACK)
+      .text(
+        "NAKKY ACADEMY (Pty) Ltd",
+        55,
+        738,
+        {
+          width: 180,
+          align: "left",
+        }
+      );
+
+    doc
+      .font("Helvetica")
+      .fontSize(6.5)
+      .fillColor(BLACK)
+      .text(
+        "2023 / 586028 / 07",
+        55,
+        750,
+        {
+          width: 180,
+          align: "left",
+        }
+      );
+
+    // =====================================================
+    // 34. BOTTOM DECORATIVE SWEEP
+    // =====================================================
+
+    // Pink main wave
+    doc
+      .moveTo(-20, 790)
+      .bezierCurveTo(
+        100, 755,
+        175, 775,
+        260, 805
+      )
+      .bezierCurveTo(
+        365, 840,
+        470, 800,
+        615, 755
+      )
+      .lineTo(615, 842)
+      .lineTo(-20, 842)
+      .closePath()
+      .fill(PINK);
+
+    // Gold wave
+    doc
+      .moveTo(-10, 784)
+      .bezierCurveTo(
+        100, 752,
+        175, 770,
+        260, 800
+      )
+      .bezierCurveTo(
+        370, 835,
+        470, 795,
+        615, 750
+      )
+      .lineWidth(5)
+      .strokeColor(GOLD)
+      .stroke();
+
+    // Black bottom band
+    doc
+      .moveTo(-20, 810)
+      .bezierCurveTo(
+        110, 770,
+        185, 805,
+        280, 830
+      )
+      .bezierCurveTo(
+        380, 855,
+        480, 820,
+        615, 785
+      )
+      .lineTo(615, 842)
+      .lineTo(-20, 842)
+      .closePath()
+      .fill(BLACK);
+
+    // Purple accent
+    doc
+      .moveTo(420, 842)
+      .bezierCurveTo(
+        485, 815,
+        545, 795,
+        615, 780
+      )
+      .lineWidth(12)
+      .strokeColor(PURPLE)
+      .stroke();
+
+   // =====================================================
+    // 35. BOTTOM SERVICE LABELS
+    // =====================================================
+
+    doc
+    .font("Helvetica-Bold")
+    .fontSize(6)
+    .fillColor(WHITE)
+    .text(
+        "TRAINING",
+        55,
+        820,
+        {
+        width: 65,
+        align: "center",
+        }
+    );
+
+    doc
+    .font("Helvetica-Bold")
+    .fontSize(6)
+    .fillColor(WHITE)
+    .text(
+        "CAREGIVER PLACEMENT",
+        125,
+        820,
+        {
+        width: 100,
+        align: "center",
+        }
+    );
+
+    doc
+    .font("Helvetica-Bold")
+    .fontSize(6)
+    .fillColor(WHITE)
+    .text(
+        "THERAPIST RECRUITMENT",
+        230,
+        820,
+        {
+        width: 110,
+        align: "center",
+        }
+    );
+
+    doc
+    .moveTo(350, 798)
+    .lineTo(350, 824)
+    .lineWidth(1)
+    .strokeColor(PINK)
+    .stroke();
+
+    // =====================================================
+    // 36. CARE / TRAIN / EMPOWER / TRANSFORM
+    // =====================================================
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(7)
+      .fillColor(PINK)
+      .text(
+        "CARE",
+        370,
+        820,
+        {
+          width: 35,
+          align: "center",
+        }
+      );
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(7)
+      .fillColor(WHITE)
+      .text(
+        "|",
+        406,
+        806,
+        {
+          width: 10,
+          align: "center",
+        }
+      );
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(7)
+      .fillColor(WHITE)
+      .text(
+        "TRAIN",
+        417,
+        820,
+        {
+          width: 38,
+          align: "center",
+        }
+      );
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(7)
+      .fillColor(WHITE)
+      .text(
+        "|",
+        456,
+        806,
+        {
+          width: 10,
+          align: "center",
+        }
+      );
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(7)
+      .fillColor(PINK)
+      .text(
+        "EMPOWER",
+        467,
+        820,
+        {
+          width: 55,
+          align: "center",
+        }
+      );
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(7)
+      .fillColor(WHITE)
+      .text(
+        "|",
+        524,
+        806,
+        {
+          width: 10,
+          align: "center",
+        }
+      );
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(7)
+      .fillColor(PINK)
+      .text(
+        "TRANSFORM",
+        532,
+        820,
+        {
+          width: 60,
+          align: "center",
+        }
+      );
+
+    // =====================================================
+    // 37. FINISH PDF
+    // =====================================================
+    doc.end();
+
+  } catch (error) {
+    console.error(
+      "DOWNLOAD CERTIFICATE ERROR:",
+      error
+    );
+
+    if (!res.headersSent) {
+      return res.status(500).json({
+        message: "Failed to generate certificate.",
+        error: error.message,
+      });
+    }
+  }
+};
+
+/**
+ * ============================================================
+ * VERIFY CERTIFICATE
+ * Public endpoint used by QR code
+ * ============================================================
+ */
+exports.verifyCertificate = async (req, res) => {
+    try {
+        const certificateNumber =
+            String(
+                req.params.certificateNumber || ""
+            ).trim();
+
+        if (!certificateNumber) {
+            return res.status(400).json({
+                valid: false,
+                message:
+                    "Certificate number is required.",
+            });
+        }
+
+        const enrollment =
+            await Enrollment.findOne({
+                certificateNumber,
+                certificateIssued: true,
+            })
+                .populate(
+                    "student",
+                    "name email"
+                )
+                .populate(
+                    "course",
+                    "title certificate"
+                );
+
+        if (!enrollment) {
+            return res.status(404).json({
+                valid: false,
+                message:
+                    "Certificate not found or is not valid.",
+            });
+        }
+
+        return res.json({
+            valid: true,
+
+            certificate: {
+                certificateNumber:
+                    enrollment.certificateNumber,
+
+                studentName:
+                    enrollment.student?.name ||
+                    "Student",
+
+                course:
+                    enrollment.course?.title ||
+                    "Training Course",
+
+                issueDate:
+                    enrollment.completedAt ||
+                    enrollment.updatedAt ||
+                    enrollment.createdAt,
+
+                status: "Valid",
+            },
+        });
 
     } catch (error) {
         console.error(
-            "downloadCertificate error:",
+            "VERIFY CERTIFICATE ERROR:",
             error
         );
 
-        if (!res.headersSent) {
-            return res.status(500).json({
-                message:
-                    "Failed to generate certificate.",
-                error:
-                    error.message,
-            });
-        }
+        return res.status(500).json({
+            valid: false,
+            message:
+                "Unable to verify certificate.",
+        });
     }
 };
 

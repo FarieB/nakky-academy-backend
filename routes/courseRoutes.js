@@ -236,6 +236,31 @@ router.get(
 
 /**
  * ============================================================
+ * PUBLIC CERTIFICATE VERIFICATION
+ * ============================================================
+ *
+ * IMPORTANT:
+ * This route must come BEFORE:
+ *
+ * router.get("/:courseId", ...)
+ *
+ * Otherwise "verify-certificate" could be interpreted
+ * as a courseId.
+ *
+ * No authentication is required.
+ *
+ * Example:
+ *
+ * GET /api/courses/verify-certificate/NA-XXXXXXXX
+ */
+router.get(
+    "/verify-certificate/:certificateNumber",
+    courseController.verifyCertificate
+);
+
+
+/**
+ * ============================================================
  * GET SINGLE COURSE
  * ============================================================
  *
@@ -362,16 +387,28 @@ router.get(
 );
 
 
+/**
+ * ============================================================
+ * MATERIAL PROGRESS
+ * ============================================================
+ */
 router.post(
     "/:courseId/material-progress",
     protect,
     courseController.completeLessonMaterial
 );
 
+
+/**
+ * ============================================================
+ * VIDEO PROGRESS
+ * ============================================================
+ */
 router.post(
     "/:courseId/video-progress",
     protect,
     courseController.completeLessonVideo
 );
+
 
 module.exports = router;

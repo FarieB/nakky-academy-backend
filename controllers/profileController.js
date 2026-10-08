@@ -12,6 +12,12 @@ const {
           refreshAdminDashboard,
         } = require("../services/socketService");
 
+const {
+    hasActiveSubscription,
+} = require("../middleware/marketplaceAccess");
+
+
+
 
 //
 // =====================================================
@@ -113,11 +119,7 @@ exports.uploadDocuments = async (req, res) => {
             });
         }
 
-        if (!user.hasPaidVerificationFee) {
-            return res.status(403).json({
-                message: "Please pay the R100 verification fee first.",
-            });
-        }
+        
 
         const {
             idDocument,
@@ -590,8 +592,6 @@ exports.updateEmployerProfile = async (req, res) => {
 
       "salaryOffered",
 
-      "profileActive",
-
       "hiringStatus"
 
     ];
@@ -731,7 +731,7 @@ exports.getSavedCandidates = async (req, res) => {
         populate: {
           path: "user",
           select:
-            "name email profilePhoto verifiedBadge",
+            "name profilePhoto verifiedBadge",
         },
       })
       .sort({
@@ -1000,8 +1000,8 @@ exports.searchCandidates = async (req, res) => {
         .find(filter)
         .populate(
           "user",
-          "name subscriptionStatus verifiedBadge"
-        );
+          "name profilePhoto verifiedBadge"
+      );
 
     // -----------------------------
     // Verified Filter
@@ -1109,68 +1109,568 @@ exports.deactivateEmployerProfile = async (req, res) => {
   }
 };
 
-//
 // =====================================================
 // GET CANDIDATE CONTACT DETAILS
-// (SUBSCRIBED EMPLOYERS ONLY)
-// =====================================================
 //
+// Employer must:
+// 1. Have an active account
+// 2. Have an active subscription
+//
+// Candidate must:
+// 1. Have an active account
+// 2. Have an active subscription
+// 3. Have an active profile
+//
+// This endpoint deliberately returns protected
+// contact information only after all checks pass.
+// =====================================================
 
 exports.getCandidateContact = async (req, res) => {
+
   try {
 
+    // =================================================
+    // ONLY EMPLOYERS CAN ACCESS CANDIDATE CONTACTS
+    // =================================================
+
     if (req.user.role !== "employer") {
+
       return res.status(403).json({
-        message: "Employers only."
+        success: false,
+        message:
+          "Only employers can access candidate contact details."
       });
+
     }
 
-    const employer = await User.findById(req.user._id);
+
+    // =================================================
+    // GET EMPLOYER
+    // =================================================
+
+    const employer =
+      await User.findById(
+        req.user._id
+      ).select(
+        "_id role accountStatus subscriptionStatus subscriptionExpiry"
+      );
+
+
+    if (!employer) {
+
+      return res.status(404).json({
+        success: false,
+        message:
+          "Employer account not found."
+      });
+
+    }
+
+
+    // =================================================
+    // EMPLOYER ACCOUNT STATUS
+    // =================================================
 
     if (
-      employer.subscriptionStatus !== "active"
+      employer.accountStatus !== "active"
     ) {
 
       return res.status(403).json({
+        success: false,
         message:
-          "An active subscription is required to view contact details."
+          "Your employer account is inactive."
       });
 
     }
+
+
+    // =================================================
+    // EMPLOYER SUBSCRIPTION
+    // =================================================
+
+    if (
+      !hasActiveSubscription(
+        employer
+      )
+    ) {
+
+      return res.status(403).json({
+        success: false,
+        code:
+          "EMPLOYER_SUBSCRIPTION_REQUIRED",
+        message:
+          "An active employer subscription is required to view candidate contact details."
+      });
+
+    }
+
+
+    // =================================================
+    // GET EMPLOYER PROFILE
+    // =================================================
+
+    const employerProfile =
+      await EmployerProfile.findOne({
+        user:
+          employer._id
+      }).select(
+        "profileActive"
+      );
+
+
+    if (
+      !employerProfile ||
+      employerProfile.profileActive !== true
+    ) {
+
+      return res.status(403).json({
+        success: false,
+        message:
+          "Your employer profile is inactive."
+      });
+
+    }
+
+
+    // =================================================
+    // GET CANDIDATE
+    // =================================================
 
     const candidate =
       await CandidateProfile.findById(
         req.params.candidateId
-      )
-      .populate(
-        "user",
-        "name email phone"
       );
+
 
     if (!candidate) {
 
       return res.status(404).json({
-        message: "Candidate not found."
+        success: false,
+        message:
+          "Candidate not found."
       });
 
     }
 
-    res.json({
 
-      firstName: candidate.firstName,
+    // =================================================
+    // CANDIDATE PROFILE STATUS
+    // =================================================
 
-      phone: candidate.user.phone,
+    if (
+      candidate.profileActive !== true
+    ) {
 
-      email: candidate.user.email
+      return res.status(404).json({
+        success: false,
+        message:
+          "Candidate profile is not available."
+      });
 
+    }
+
+
+    // =================================================
+    // GET CANDIDATE USER
+    // =================================================
+
+    const candidateUser =
+      await User.findById(
+        candidate.user
+      ).select(
+        "_id role accountStatus subscriptionStatus subscriptionExpiry"
+      );
+
+
+    if (!candidateUser) {
+
+      return res.status(404).json({
+        success: false,
+        message:
+          "Candidate account not found."
+      });
+
+    }
+
+
+    // =================================================
+    // CANDIDATE ACCOUNT STATUS
+    // =================================================
+
+    if (
+      candidateUser.accountStatus !== "active"
+    ) {
+
+      return res.status(403).json({
+        success: false,
+        message:
+          "The candidate account is inactive."
+      });
+
+    }
+
+
+    // =================================================
+    // CANDIDATE SUBSCRIPTION
+    // =================================================
+
+    if (
+      !hasActiveSubscription(
+        candidateUser
+      )
+    ) {
+
+      return res.status(403).json({
+        success: false,
+        code:
+          "CANDIDATE_SUBSCRIPTION_REQUIRED",
+        message:
+          "The candidate does not currently have an active marketplace subscription."
+      });
+
+    }
+
+
+    // =================================================
+    // GET PROTECTED CONTACT INFORMATION
+    // =================================================
+
+    const contactUser =
+      await User.findById(
+        candidate.user
+      ).select(
+        "email phone"
+      );
+
+
+    if (!contactUser) {
+
+      return res.status(404).json({
+        success: false,
+        message:
+          "Candidate contact information not found."
+      });
+
+    }
+
+
+    return res.json({
+
+      success: true,
+
+      contact: {
+
+        firstName:
+          candidate.firstName,
+
+        surname:
+          candidate.surname,
+
+        phone:
+          contactUser.phone || "",
+
+        email:
+          contactUser.email || ""
+
+      }
+
+    });
+
+
+  } catch (error) {
+
+    console.error(
+      "GET CANDIDATE CONTACT ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to retrieve candidate contact details."
     });
 
   }
 
-  catch (err) {
+};
 
-    res.status(500).json({
-      error: err.message
+// =====================================================
+// GET EMPLOYER CONTACT DETAILS
+//
+// Candidate must:
+// 1. Have an active account
+// 2. Have an active subscription
+// 3. Have an active profile
+//
+// Employer must:
+// 1. Have an active account
+// 2. Have an active subscription
+// 3. Have an active profile
+// =====================================================
+
+exports.getEmployerContact = async (req, res) => {
+
+  try {
+
+    // =================================================
+    // ONLY CANDIDATES CAN ACCESS EMPLOYER CONTACTS
+    // =================================================
+
+    if (req.user.role !== "candidate") {
+
+      return res.status(403).json({
+        success: false,
+        message:
+          "Only candidates can access employer contact details."
+      });
+
+    }
+
+
+    // =================================================
+    // GET CANDIDATE USER
+    // =================================================
+
+    const candidateUser =
+      await User.findById(
+        req.user._id
+      ).select(
+        "_id role accountStatus subscriptionStatus subscriptionExpiry"
+      );
+
+
+    if (!candidateUser) {
+
+      return res.status(404).json({
+        success: false,
+        message:
+          "Candidate account not found."
+      });
+
+    }
+
+
+    // =================================================
+    // CANDIDATE ACCOUNT STATUS
+    // =================================================
+
+    if (
+      candidateUser.accountStatus !== "active"
+    ) {
+
+      return res.status(403).json({
+        success: false,
+        message:
+          "Your candidate account is inactive."
+      });
+
+    }
+
+
+    // =================================================
+    // CANDIDATE SUBSCRIPTION
+    // =================================================
+
+    if (
+      !hasActiveSubscription(
+        candidateUser
+      )
+    ) {
+
+      return res.status(403).json({
+        success: false,
+        code:
+          "CANDIDATE_SUBSCRIPTION_REQUIRED",
+        message:
+          "An active R200 annual marketplace subscription is required to view employer contact details."
+      });
+
+    }
+
+
+    // =================================================
+    // CANDIDATE PROFILE
+    // =================================================
+
+    const candidateProfile =
+      await CandidateProfile.findOne({
+        user:
+          candidateUser._id
+      }).select(
+        "profileActive"
+      );
+
+
+    if (
+      !candidateProfile ||
+      candidateProfile.profileActive !== true
+    ) {
+
+      return res.status(403).json({
+        success: false,
+        message:
+          "Your candidate profile is inactive."
+      });
+
+    }
+
+
+    // =================================================
+    // GET EMPLOYER PROFILE
+    // =================================================
+
+    const employerProfile =
+      await EmployerProfile.findById(
+        req.params.employerId
+      );
+
+
+    if (!employerProfile) {
+
+      return res.status(404).json({
+        success: false,
+        message:
+          "Employer profile not found."
+      });
+
+    }
+
+
+    // =================================================
+    // EMPLOYER PROFILE STATUS
+    // =================================================
+
+    if (
+      employerProfile.profileActive !== true
+    ) {
+
+      return res.status(404).json({
+        success: false,
+        message:
+          "Employer profile is not currently available."
+      });
+
+    }
+
+
+    // =================================================
+    // GET EMPLOYER USER
+    // =================================================
+
+    const employerUser =
+      await User.findById(
+        employerProfile.user
+      ).select(
+        "_id role accountStatus subscriptionStatus subscriptionExpiry"
+      );
+
+
+    if (!employerUser) {
+
+      return res.status(404).json({
+        success: false,
+        message:
+          "Employer account not found."
+      });
+
+    }
+
+
+    // =================================================
+    // EMPLOYER ACCOUNT STATUS
+    // =================================================
+
+    if (
+      employerUser.accountStatus !== "active"
+    ) {
+
+      return res.status(403).json({
+        success: false,
+        message:
+          "Employer account is inactive."
+      });
+
+    }
+
+
+    // =================================================
+    // EMPLOYER SUBSCRIPTION
+    // =================================================
+
+    if (
+      !hasActiveSubscription(
+        employerUser
+      )
+    ) {
+
+      return res.status(403).json({
+        success: false,
+        code:
+          "EMPLOYER_SUBSCRIPTION_REQUIRED",
+        message:
+          "The employer does not currently have an active subscription."
+      });
+
+    }
+
+
+    // =================================================
+    // GET PROTECTED CONTACT INFORMATION
+    // =================================================
+
+    const contactUser =
+      await User.findById(
+        employerProfile.user
+      ).select(
+        "email phone"
+      );
+
+
+    if (!contactUser) {
+
+      return res.status(404).json({
+        success: false,
+        message:
+          "Employer contact information not found."
+      });
+
+    }
+
+
+    return res.json({
+
+      success: true,
+
+      contact: {
+
+        contactPerson:
+          employerProfile.contactPerson || "",
+
+        householdName:
+          employerProfile.householdName || "",
+
+        phone:
+          contactUser.phone || "",
+
+        email:
+          contactUser.email || ""
+
+      }
+
+    });
+
+
+  } catch (error) {
+
+    console.error(
+      "GET EMPLOYER CONTACT ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to retrieve employer contact details."
     });
 
   }
@@ -2040,4 +2540,137 @@ exports.viewCandidateDocument = async (req, res) => {
       message: "Unable to view candidate document.",
     });
   }
+};
+
+exports.getEmployerContact = async (
+    req,
+    res
+) => {
+
+    try {
+
+        if (
+            req.user.role !==
+            "candidate"
+        ) {
+            return res.status(403).json({
+                message:
+                    "Candidates only.",
+            });
+        }
+
+
+        // ====================================================
+        // CHECK CANDIDATE SUBSCRIPTION
+        // ====================================================
+
+        const candidateUser =
+            await User.findById(
+                req.user._id
+            );
+
+
+        if (
+            !hasActiveSubscription(
+                candidateUser
+            )
+        ) {
+            return res.status(403).json({
+                message:
+                    "An active subscription is required to view employer contact details.",
+
+                subscriptionRequired:
+                    true,
+            });
+        }
+
+
+        // ====================================================
+        // GET EMPLOYER PROFILE
+        // ====================================================
+
+        const employer =
+            await EmployerProfile
+                .findById(
+                    req.params.employerId
+                )
+                .populate(
+                    "user",
+                    "name email phone"
+                );
+
+
+        if (!employer) {
+            return res.status(404).json({
+                message:
+                    "Employer not found.",
+            });
+        }
+
+
+        if (
+            employer.profileActive !==
+            true
+        ) {
+            return res.status(404).json({
+                message:
+                    "Employer profile is not available.",
+            });
+        }
+
+
+        // ====================================================
+        // CHECK EMPLOYER SUBSCRIPTION
+        // ====================================================
+
+        if (
+            !hasActiveSubscription(
+                employer.user
+            )
+        ) {
+            return res.status(403).json({
+                message:
+                    "The employer does not currently have an active subscription.",
+
+                recipientSubscriptionRequired:
+                    true,
+            });
+        }
+
+
+        // ====================================================
+        // RETURN CONTACT
+        // ====================================================
+
+        return res.json({
+
+            contactPerson:
+                employer.contactPerson ||
+                "",
+
+            householdName:
+                employer.householdName ||
+                "",
+
+            phone:
+                employer.user?.phone ||
+                "",
+
+            email:
+                employer.user?.email ||
+                "",
+        });
+
+    } catch (err) {
+
+        console.error(
+            "GET EMPLOYER CONTACT ERROR:",
+            err
+        );
+
+        return res.status(500).json({
+            message:
+                "Unable to retrieve employer contact details.",
+        });
+    }
 };

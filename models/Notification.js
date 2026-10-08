@@ -39,6 +39,7 @@ const NotificationSchema = new mongoose.Schema(
             "candidate_saved",
             "candidate_viewed",
             "verification",
+            "interview",
             "subscription",
             "subscription_activated",
             "subscription_purchase",
@@ -86,17 +87,18 @@ const NotificationSchema = new mongoose.Schema(
     },
 
     referenceModel: {
-        type: String,
-        enum: [
-            "User",
-            "Course",
-            "Enrollment",
-            "Payment",
-            "Conversation",
-            "Message",
-            "Subscription",
-        ],
-    },
+    type: String,
+    enum: [
+        "User",
+        "Course",
+        "Enrollment",
+        "Payment",
+        "Conversation",
+        "Message",
+        "Subscription",
+        "InterviewRequest",
+    ],
+},
 
     // ==========================================
     // App Navigation

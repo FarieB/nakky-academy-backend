@@ -1,17 +1,53 @@
-const express = require("express");
-const router = express.Router();
-const protect = require("../middleware/authMiddleware");
+const express =
+    require("express");
 
-const { 
-  recommendCandidates,
-  recommendCourses
-} = require("../controllers/recommendationController");
+const router =
+    express.Router();
+
+const protect =
+    require("../middleware/authMiddleware");
+
+const {
+    recommendCandidates,
+    recommendCourses,
+    recommendEmployers
+} = require(
+    "../controllers/recommendationController"
+);
 
 
-// Employer → candidate recommendations
-router.get("/candidates", protect, recommendCandidates);
+// =====================================================
+// EMPLOYER → CANDIDATE MATCHING
+// =====================================================
 
-// Student → course recommendations
-router.get("/courses", protect, recommendCourses);
+router.get(
+    "/candidates",
+    protect,
+    recommendCandidates
+);
 
-module.exports = router;
+
+// =====================================================
+// CANDIDATE → EMPLOYER MATCHING
+// =====================================================
+
+router.get(
+    "/employers",
+    protect,
+    recommendEmployers
+);
+
+
+// =====================================================
+// STUDENT → COURSE RECOMMENDATIONS
+// =====================================================
+
+router.get(
+    "/courses",
+    protect,
+    recommendCourses
+);
+
+
+module.exports =
+    router;

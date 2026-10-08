@@ -152,6 +152,11 @@ const subscriptionRoutes =
 const assessmentRoutes =
   require("./routes/assessmentRoutes");
 
+const jobRoutes = require("./routes/jobRoutes");
+
+const interviewRoutes =
+    require("./routes/interviewRoutes");
+
 // =====================================================
 // API
 // =====================================================
@@ -219,6 +224,16 @@ app.use(
 app.use(
   "/api",
   assessmentRoutes
+);
+
+app.use(
+    "/api/jobs",
+    jobRoutes
+);
+
+app.use(
+    "/api/interviews",
+    interviewRoutes
 );
 
 // =====================================================

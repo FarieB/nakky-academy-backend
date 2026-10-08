@@ -467,6 +467,95 @@ exports.getMyPayments =
 
 
 // =====================================================
+// GET CANDIDATE MARKETPLACE SUBSCRIPTION STATUS
+// =====================================================
+
+exports.getCandidateSubscriptionStatus =
+    async (req, res) => {
+
+        try {
+
+            const User =
+                require("../models/user");
+
+            const user =
+                await User.findById(
+                    req.user._id
+                ).select(
+                    "role subscriptionStatus subscriptionExpiry isVerified verificationStatus verifiedBadge hasPaidVerificationFee"
+                );
+
+            if (!user) {
+
+                return res.status(404).json({
+                    message:
+                        "User account not found."
+                });
+
+            }
+
+            if (user.role !== "candidate") {
+
+                return res.status(403).json({
+                    message:
+                        "This endpoint is only available to candidates."
+                });
+
+            }
+
+            const now = new Date();
+
+            const active =
+                user.subscriptionStatus === "active" &&
+                user.subscriptionExpiry &&
+                new Date(user.subscriptionExpiry) > now;
+
+            return res.json({
+
+                active,
+
+                subscriptionStatus:
+                    active
+                        ? "active"
+                        : "inactive",
+
+                subscriptionExpiry:
+                    user.subscriptionExpiry ||
+                    null,
+
+                isVerified:
+                    user.isVerified,
+
+                verificationStatus:
+                    user.verificationStatus,
+
+                verifiedBadge:
+                    user.verifiedBadge,
+
+                hasPaidVerificationFee:
+                    user.hasPaidVerificationFee
+
+            });
+
+        } catch (err) {
+
+            console.error(
+                "GET CANDIDATE SUBSCRIPTION STATUS ERROR:",
+                err
+            );
+
+            return res.status(500).json({
+                message:
+                    err.message ||
+                    "Failed to retrieve candidate subscription status."
+            });
+
+        }
+
+    };
+
+
+// =====================================================
 // ADMIN: GET ALL PAYMENTS
 // =====================================================
 

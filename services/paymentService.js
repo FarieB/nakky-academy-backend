@@ -302,14 +302,30 @@ const createVerificationPayment = async (user) => {
     }
 
 
-    // ==========================================
-    // CHECK IF ALREADY VERIFIED
+   // ==========================================
+    // CHECK CURRENT VERIFICATION / SUBSCRIPTION
     // ==========================================
 
-    if (profile.profileVerified) {
+    const now = new Date();
+
+    const subscriptionIsActive =
+        user.subscriptionStatus === "active" &&
+        user.subscriptionExpiry &&
+        new Date(user.subscriptionExpiry) > now;
+
+    // ==========================================
+    // CANDIDATE ALREADY HAS AN ACTIVE YEAR
+    // ==========================================
+
+    if (
+        profile.profileVerified &&
+        subscriptionIsActive
+    ) {
 
         throw new Error(
-            "Your profile has already been verified."
+            `Your verification and marketplace subscription are active until ${new Date(
+                user.subscriptionExpiry
+            ).toDateString()}.`
         );
 
     }
@@ -919,33 +935,102 @@ if (payment.type === "subscription") {
 }
 
 
-    // ==========================================
-    // CANDIDATE VERIFICATION
-    // ==========================================
+  // ==========================================
+// CANDIDATE VERIFICATION + 1-YEAR MARKETPLACE
+// SUBSCRIPTION
+// ==========================================
 
-    if (payment.type === "verification") {
+if (payment.type === "verification") {
 
-        const profile =
-            await CandidateProfile.findById(
-                payment.referenceId
-            );
+    const profile =
+        await CandidateProfile.findById(
+            payment.referenceId
+        );
 
+    if (!profile) {
 
-        if (!profile) {
-
-            throw new Error(
-                "Candidate profile not found."
-            );
-
-        }
-
-
-        profile.profileVerified =
-            true;
-
-        await profile.save();
+        throw new Error(
+            "Candidate profile not found."
+        );
 
     }
+
+    // ==========================================
+    // FIND CANDIDATE USER
+    // ==========================================
+
+    const candidate =
+        await require("../models/user").findById(
+            payment.user
+        );
+
+    if (!candidate) {
+
+        throw new Error(
+            "Candidate user account not found."
+        );
+
+    }
+
+    // ==========================================
+    // ACTIVATE CANDIDATE PROFILE
+    // ==========================================
+
+    profile.profileVerified = true;
+
+    await profile.save();
+
+    // ==========================================
+    // ACTIVATE VERIFICATION STATUS
+    // ==========================================
+
+    candidate.isVerified = true;
+
+    candidate.verificationStatus =
+        "verified";
+
+    candidate.verifiedBadge = true;
+
+    candidate.hasPaidVerificationFee =
+        true;
+
+    candidate.verificationSubmittedAt =
+        candidate.verificationSubmittedAt ||
+        new Date();
+
+    // ==========================================
+    // ACTIVATE 1-YEAR MARKETPLACE SUBSCRIPTION
+    // ==========================================
+
+    const today = new Date();
+
+    const expiry = new Date(today);
+
+    expiry.setFullYear(
+        expiry.getFullYear() + 1
+    );
+
+    candidate.subscriptionStatus =
+        "active";
+
+    candidate.subscriptionExpiry =
+        expiry;
+
+    // ==========================================
+    // CANDIDATE VERIFICATION PAYMENT APPROVED
+    // ==========================================
+
+    await candidate.save();
+
+    console.log(
+        "CANDIDATE VERIFICATION + MARKETPLACE SUBSCRIPTION ACTIVATED:",
+        {
+            candidateId: candidate._id,
+            paymentId: payment._id,
+            subscriptionExpiry: expiry
+        }
+    );
+}
 
 
     // ==========================================

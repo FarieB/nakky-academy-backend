@@ -5,6 +5,12 @@ const protect = require("../middleware/authMiddleware");
 const documentUpload = require("../middleware/documentUpload");
 
 const {
+    getEmployerContact,
+} = require(
+    "../controllers/profileController"
+);
+
+const {
   createCandidateProfile,
   getCandidateProfile,
   updateCandidateProfile,
@@ -25,6 +31,7 @@ const {
 
   searchCandidates,
   getCandidateContact,
+  getEmployerContact,
   saveCandidate,
   getSavedCandidates,
   removeSavedCandidate,
@@ -104,6 +111,11 @@ router.put("/employer/deactivate", protect, deactivateEmployerProfile);
 // ======================================
 router.get("/search", protect, searchCandidates);
 router.get("/candidate/:candidateId/contact", protect, getCandidateContact);
+router.get(
+  "/employer/:employerId/contact",
+  protect,
+  getEmployerContact
+);
 
 // Saved Profiles Engine
 router.get("/saved-candidates", protect, getSavedCandidates);

@@ -48,6 +48,10 @@ router.post(
 );
 
 
+// =====================================================
+// GET COURSE PAYMENT
+// =====================================================
+
 router.get(
     "/course/:courseId",
     authMiddleware,
@@ -84,13 +88,25 @@ router.get(
 // GET ALL PAYMENTS
 // ADMIN ONLY
 // =====================================================
-// Used by the mobile admin management system.
 
 router.get(
     "/all",
     authMiddleware,
     adminOnly,
     paymentController.getAllPayments
+);
+
+
+// =====================================================
+// CANDIDATE MARKETPLACE SUBSCRIPTION STATUS
+// =====================================================
+// Used by the mobile app to determine whether a
+// candidate is currently allowed to use the marketplace.
+
+router.get(
+    "/candidate-subscription",
+    authMiddleware,
+    paymentController.getCandidateSubscriptionStatus
 );
 
 

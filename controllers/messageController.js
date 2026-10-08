@@ -1,17 +1,20 @@
 const Message = require("../models/Message");
 const User = require("../models/user");
-const CandidateProfile = require("../models/CandidateProfile");
-// 1. IMPORT SOCKET SERVICE AT THE TOP
-const socketService = require("../services/socketService"); 
+
+const socketService = require("../services/socketService");
 
 const {
     notifyMessage,
 } = require("../services/notificationService");
 
+const {
+    requireBothActiveSubscriptions,
+} = require("../middleware/marketplaceAccess");
 
-// ==============================
-// Send Message
-// ==============================
+// =====================================================
+// SEND MESSAGE
+// =====================================================
+
 exports.sendMessage = async (req, res) => {
     try {
         const {
@@ -21,73 +24,71 @@ exports.sendMessage = async (req, res) => {
 
         if (!receiverId || !message) {
             return res.status(400).json({
-                message: "Receiver and message are required",
+                message:
+                    "Receiver and message are required.",
             });
         }
 
-        // ==================================================
-        // CHECK WHETHER THE SENDER IS AN EMPLOYER
-        // AND THE RECEIVER IS A CANDIDATE
-        // ==================================================
+        const cleanMessage =
+            String(message).trim();
 
-        if (req.user.role === "employer") {
-            const receiver = await User.findById(receiverId)
-                .select("role");
-
-            if (!receiver) {
-                return res.status(404).json({
-                    message: "Receiver not found.",
-                });
-            }
-
-            // ==============================================
-            // Employers cannot message deactivated candidates
-            // ==============================================
-
-            if (receiver.role === "candidate") {
-                const candidateProfile =
-                    await CandidateProfile.findOne({
-                        user: receiverId,
-                    }).select("profileActive");
-
-                if (
-                    !candidateProfile ||
-                    candidateProfile.profileActive !== true
-                ) {
-                    return res.status(403).json({
-                        message:
-                            "This candidate is currently unavailable.",
-                    });
-                }
-            }
+        if (!cleanMessage) {
+            return res.status(400).json({
+                message:
+                    "Message cannot be empty.",
+            });
         }
 
-        // ==================================================
-        // Create message
-        // ==================================================
+        if (cleanMessage.length > 5000) {
+            return res.status(400).json({
+                message:
+                    "Message cannot exceed 5000 characters.",
+            });
+        }
+
+        // =================================================
+        // IMPORTANT:
+        // BOTH candidate and employer must have active
+        // subscriptions before communication is allowed.
+        // =================================================
+
+        if (
+            !req.marketplaceSender ||
+            !req.marketplaceReceiver
+        ) {
+            return res.status(403).json({
+                message:
+                    "You do not currently have permission to contact this user.",
+            });
+        }
+
+        // =================================================
+        // CREATE MESSAGE
+        // =================================================
 
         const newMessage = await Message.create({
             sender: req.user._id,
             receiver: receiverId,
-            message,
+            message: cleanMessage,
             status: "sent",
         });
 
-        // ==================================================
-        // Get sender's first name
-        // ==================================================
+        // =================================================
+        // GET SENDER NAME
+        // =================================================
 
-        const sender = await User.findById(req.user._id)
-            .select("firstName name");
+        const sender = await User.findById(
+            req.user._id
+        ).select("firstName name");
 
         const senderName =
             sender?.firstName ||
             sender?.name?.split(" ")[0] ||
             "User";
 
-        // ==================================================
-        // Create notification
-        // ==================================================
+        // =================================================
+        // NOTIFICATION
+        // =================================================
 
         await notifyMessage({
             sender: req.user._id,
@@ -95,12 +96,14 @@ exports.sendMessage = async (req, res) => {
             senderName,
         });
 
-        // ==================================================
-        // Fetch populated message
-        // ==================================================
+        // =================================================
+        // POPULATE MESSAGE
+        // =================================================
 
         const populatedMessage =
-            await Message.findById(newMessage._id)
+            await Message.findById(
+                newMessage._id
+            )
                 .populate(
                     "sender",
                     "name firstName profilePhoto"
@@ -110,18 +113,18 @@ exports.sendMessage = async (req, res) => {
                     "name firstName profilePhoto"
                 );
 
-        // ==================================================
-        // Emit message via WebSocket
-        // ==================================================
+        // =================================================
+        // SOCKET MESSAGE
+        // =================================================
 
         socketService.sendMessage(
             receiverId,
             populatedMessage
         );
 
-        // ==================================================
-        // Update receiver unread count
-        // ==================================================
+        // =================================================
+        // UPDATE UNREAD COUNT
+        // =================================================
 
         await socketService.sendUnreadCount(
             receiverId
@@ -130,87 +133,126 @@ exports.sendMessage = async (req, res) => {
         return res.status(201).json(
             populatedMessage
         );
-
-    } catch (err) {
+    } catch (error) {
         console.error(
             "SEND MESSAGE ERROR:",
-            err
+            error
         );
 
         return res.status(500).json({
-            error: err.message,
+            message:
+                "Unable to send message.",
+            error: error.message,
         });
     }
 };
 
-// =====================================
-// Mark Message Delivered
-// =====================================
+// =====================================================
+// MARK MESSAGE DELIVERED
+// =====================================================
 
-exports.markDelivered = async (req, res) => {
-
+exports.markDelivered = async (
+    req,
+    res
+) => {
     try {
-
-        const message = await Message.findById(req.params.id);
+        const message =
+            await Message.findById(
+                req.params.id
+            );
 
         if (!message) {
-
             return res.status(404).json({
-                message: "Message not found",
+                message:
+                    "Message not found.",
             });
-
         }
 
-        if (message.status === "sent") {
+        // Only the receiver may mark a message
+        // as delivered.
 
+        if (
+            String(message.receiver) !==
+            String(req.user._id)
+        ) {
+            return res.status(403).json({
+                message:
+                    "You are not authorised to update this message.",
+            });
+        }
+
+        if (
+            message.status === "sent"
+        ) {
             message.status = "delivered";
-            message.deliveredAt = new Date();
+            message.deliveredAt =
+                new Date();
 
             await message.save();
 
             socketService.sendMessageStatus(
                 message.sender,
                 {
-                    messageId: message._id,
+                    messageId:
+                        message._id,
                     status: "delivered",
-                    deliveredAt: message.deliveredAt,
+                    deliveredAt:
+                        message.deliveredAt,
                 }
             );
-
         }
 
-        res.json(message);
+        return res.json(message);
+    } catch (error) {
+        console.error(
+            "MARK DELIVERED ERROR:",
+            error
+        );
 
-    } catch (err) {
-
-        res.status(500).json({
-            message: err.message,
+        return res.status(500).json({
+            message:
+                "Unable to update message status.",
         });
-
     }
-
 };
 
-// =====================================
-// Mark Message As Read
-// =====================================
+// =====================================================
+// MARK MESSAGE AS READ
+// =====================================================
 
-exports.markRead = async (req, res) => {
-
+exports.markRead = async (
+    req,
+    res
+) => {
     try {
-
-        const message = await Message.findById(req.params.id);
+        const message =
+            await Message.findById(
+                req.params.id
+            );
 
         if (!message) {
-
             return res.status(404).json({
-                message: "Message not found",
+                message:
+                    "Message not found.",
             });
-
         }
 
-        if (message.status !== "read") {
+        // Only the receiver may mark the
+        // message as read.
 
+        if (
+            String(message.receiver) !==
+            String(req.user._id)
+        ) {
+            return res.status(403).json({
+                message:
+                    "You are not authorised to update this message.",
+            });
+        }
+
+        if (
+            message.status !== "read"
+        ) {
             message.status = "read";
             message.readAt = new Date();
 
@@ -219,135 +261,214 @@ exports.markRead = async (req, res) => {
             socketService.sendMessageStatus(
                 message.sender,
                 {
-                    messageId: message._id,
+                    messageId:
+                        message._id,
                     status: "read",
-                    readAt: message.readAt,
+                    readAt:
+                        message.readAt,
                 }
             );
 
-            // 3. OPTIONAL BUT HIGHLY RECOMMENDED: 
-            // Update unread count for the receiver (req.user._id) since they just read a message
-            await socketService.sendUnreadCount(req.user._id);
-
+            await socketService.sendUnreadCount(
+                req.user._id
+            );
         }
 
-        res.json(message);
+        return res.json(message);
+    } catch (error) {
+        console.error(
+            "MARK READ ERROR:",
+            error
+        );
 
-    }
-
-    catch (err) {
-
-        res.status(500).json({
-            message: err.message,
+        return res.status(500).json({
+            message:
+                "Unable to update message status.",
         });
-
     }
-
 };
 
-// =====================================
-// Get Unread Counts
-// =====================================
+// =====================================================
+// GET UNREAD COUNTS
+// =====================================================
 
-exports.getUnreadCounts = async (req, res) => {
-
+exports.getUnreadCounts = async (
+    req,
+    res
+) => {
     try {
+        const counts =
+            await Message.aggregate([
+                {
+                    $match: {
+                        receiver:
+                            req.user._id,
+                        status: {
+                            $ne: "read",
+                        },
+                    },
+                },
+                {
+                    $group: {
+                        _id: "$sender",
+                        unreadCount: {
+                            $sum: 1,
+                        },
+                    },
+                },
+            ]);
 
-        const counts = await Message.aggregate([
+        return res.json(counts);
+    } catch (error) {
+        console.error(
+            "GET UNREAD COUNTS ERROR:",
+            error
+        );
 
-            {
-
-                $match: {
-
-                    receiver: req.user._id,
-
-                    status: {
-
-                        $ne: "read"
-
-                    }
-
-                }
-
-            },
-
-            {
-
-                $group: {
-
-                    _id: "$sender",
-
-                    unreadCount: {
-
-                        $sum: 1
-
-                    }
-
-                }
-
-            }
-
-        ]);
-
-        res.json(counts);
-
-    }
-
-    catch (err) {
-
-        res.status(500).json({
-
-            message: err.message
-
+        return res.status(500).json({
+            message:
+                "Unable to retrieve unread counts.",
         });
-
     }
-
 };
 
+// =====================================================
+// GET CONVERSATION
+// =====================================================
+//
+// Existing conversations can still be viewed by
+// participants. Subscription is required for NEW
+// contact/message creation, not for accessing one's
+// existing message history.
+//
 
-// ==============================
-// Get Conversation (2 users)
-// ==============================
-exports.getConversation = async (req, res) => {
-  try {
-    const { userId } = req.params;
+exports.getConversation = async (
+    req,
+    res
+) => {
+    try {
+        const { userId } =
+            req.params;
 
-    const messages = await Message.find({
-      $or: [
-        { sender: req.user._id, receiver: userId },
-        { sender: userId, receiver: req.user._id }
-      ]
-    })
-      .sort({ createdAt: 1 })
-      .populate("sender", "name")
-      .populate("receiver", "name");
+        if (!userId) {
+            return res.status(400).json({
+                message:
+                    "User ID is required.",
+            });
+        }
 
-    res.json(messages);
+        if (
+            String(userId) ===
+            String(req.user._id)
+        ) {
+            return res.status(400).json({
+                message:
+                    "Invalid conversation.",
+            });
+        }
 
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+        // Make sure the other user exists.
+
+        const otherUser =
+            await User.findById(userId)
+                .select(
+                    "_id role accountStatus name firstName profilePhoto"
+                );
+
+        if (!otherUser) {
+            return res.status(404).json({
+                message:
+                    "User not found.",
+            });
+        }
+
+        const messages =
+            await Message.find({
+                $or: [
+                    {
+                        sender:
+                            req.user._id,
+                        receiver:
+                            userId,
+                    },
+                    {
+                        sender:
+                            userId,
+                        receiver:
+                            req.user._id,
+                    },
+                ],
+            })
+                .sort({
+                    createdAt: 1,
+                })
+                .populate(
+                    "sender",
+                    "name firstName profilePhoto"
+                )
+                .populate(
+                    "receiver",
+                    "name firstName profilePhoto"
+                );
+
+        return res.json(messages);
+    } catch (error) {
+        console.error(
+            "GET CONVERSATION ERROR:",
+            error
+        );
+
+        return res.status(500).json({
+            message:
+                "Unable to retrieve conversation.",
+        });
+    }
 };
 
-// ==============================
-// Get My Conversations (last messages)
-// ==============================
-exports.getMyChats = async (req, res) => {
-  try {
-    const messages = await Message.find({
-      $or: [
-        { sender: req.user._id },
-        { receiver: req.user._id }
-      ]
-    })
-      .sort({ createdAt: -1 })
-      .populate("sender", "name")
-      .populate("receiver", "name");
+// =====================================================
+// GET MY CHATS
+// =====================================================
 
-    res.json(messages);
+exports.getMyChats = async (
+    req,
+    res
+) => {
+    try {
+        const messages =
+            await Message.find({
+                $or: [
+                    {
+                        sender:
+                            req.user._id,
+                    },
+                    {
+                        receiver:
+                            req.user._id,
+                    },
+                ],
+            })
+                .sort({
+                    createdAt: -1,
+                })
+                .populate(
+                    "sender",
+                    "name firstName profilePhoto"
+                )
+                .populate(
+                    "receiver",
+                    "name firstName profilePhoto"
+                );
 
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+        return res.json(messages);
+    } catch (error) {
+        console.error(
+            "GET MY CHATS ERROR:",
+            error
+        );
+
+        return res.status(500).json({
+            message:
+                "Unable to retrieve conversations.",
+        });
+    }
 };

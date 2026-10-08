@@ -1,25 +1,64 @@
 const express = require("express");
+
 const router = express.Router();
 
 const protect = require("../middleware/authMiddleware");
 
 const {
-  sendMessage,
-  getConversation,
-  getMyChats,
-  markDelivered,
-  markRead,
-  getUnreadCounts
+    requireBothActiveSubscriptions,
+} = require("../middleware/marketplaceAccess");
+
+const {
+    sendMessage,
+    getConversation,
+    getMyChats,
+    markDelivered,
+    markRead,
+    getUnreadCounts,
 } = require("../controllers/messageController");
 
-// Send message
-router.post("/", protect, sendMessage);
+// =====================================================
+// SEND MESSAGE
+// =====================================================
+//
+// BOTH candidate and employer must have an active,
+// unexpired subscription.
+//
 
-// Get conversation with specific user
-router.get("/:userId", protect, getConversation);
+router.post(
+    "/",
+    protect,
+    requireBothActiveSubscriptions,
+    sendMessage
+);
 
-// Get all chats
-router.get("/", protect, getMyChats);
+// =====================================================
+// GET CONVERSATION
+// =====================================================
+//
+// Existing participants may view their conversation.
+// This does NOT reveal phone numbers or email addresses.
+//
+
+router.get(
+    "/:userId",
+    protect,
+    getConversation
+);
+
+// =====================================================
+// GET MY CHATS
+// =====================================================
+
+router.get(
+    "/",
+    protect,
+    getMyChats
+);
+
+// =====================================================
+// MARK MESSAGE DELIVERED
+// =====================================================
 
 router.put(
     "/:id/delivered",
@@ -27,11 +66,19 @@ router.put(
     markDelivered
 );
 
+// =====================================================
+// MARK MESSAGE READ
+// =====================================================
+
 router.put(
     "/:id/read",
     protect,
     markRead
 );
+
+// =====================================================
+// UNREAD COUNTS
+// =====================================================
 
 router.get(
     "/unread/counts",

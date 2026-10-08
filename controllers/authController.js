@@ -124,60 +124,146 @@ const register = async (req, res) => {
 // Login
 // ==========================================
 const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
 
-    const user = await User.findOne({
+  const startTime = Date.now();
+
+  try {
+
+    const {
       email,
-    });
+      password,
+    } = req.body;
+
+    if (!email || !password) {
+
+      return res.status(400).json({
+        message:
+          "Email and password are required.",
+      });
+
+    }
+
+    const normalizedEmail =
+      email
+        .trim()
+        .toLowerCase();
+
+    // ===================================================
+    // FIND USER
+    // ===================================================
+
+    const user =
+      await User.findOne({
+        email: normalizedEmail,
+      });
 
     if (!user) {
+
       return res.status(400).json({
-        message: "User not found",
+        message:
+          "Invalid credentials",
       });
+
     }
 
-    const validPassword = await bcrypt.compare(
-      password,
-      user.password
-    );
+    // ===================================================
+    // PASSWORD
+    // ===================================================
+
+    const validPassword =
+      await bcrypt.compare(
+        password,
+        user.password
+      );
 
     if (!validPassword) {
+
       return res.status(400).json({
-        message: "Invalid credentials",
+        message:
+          "Invalid credentials",
       });
+
     }
 
-    user.lastLogin = new Date();
+    // ===================================================
+    // UPDATE LAST LOGIN
+    // ===================================================
+    // Do NOT make the user wait for this write.
+    // It is not required to complete authentication.
 
-    await user.save();
-
-    const token = jwt.sign(
+    User.updateOne(
       {
-        id: user._id,
-        role: user.role,
+        _id: user._id,
       },
-      process.env.JWT_SECRET,
       {
-        expiresIn: "7d",
+        $set: {
+          lastLogin: new Date(),
+        },
+      }
+    ).catch(
+      (error) => {
+        console.error(
+          "LAST LOGIN UPDATE ERROR:",
+          error.message
+        );
       }
     );
 
+    // ===================================================
+    // JWT
+    // ===================================================
+
+    const token =
+      jwt.sign(
+        {
+          id: user._id,
+          role: user.role,
+        },
+
+        process.env.JWT_SECRET,
+
+        {
+          expiresIn: "7d",
+        }
+      );
+
+    // ===================================================
+    // RESPONSE USER
+    // ===================================================
+
     const {
-      password: removedPassword,
+      password:
+        removedPassword,
       ...userWithoutPassword
     } = user.toObject();
 
+    console.log(
+      `[LOGIN] ${Date.now() - startTime}ms`
+    );
+
     return res.json({
+
       token,
-      user: userWithoutPassword,
+
+      user:
+        userWithoutPassword,
+
     });
 
   } catch (error) {
+
+    console.error(
+      "LOGIN ERROR:",
+      error
+    );
+
     return res.status(500).json({
-      message: error.message,
+      message:
+        "Login failed. Please try again.",
     });
+
   }
+
 };
 
 module.exports = {

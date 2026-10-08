@@ -1,420 +1,674 @@
-const Message = require("../models/Message");
-const NotificationModel = require("../models/Notification");
-const User = require("../models/user");
-const CandidateProfile = require("../models/CandidateProfile");
-const Enrollment = require("../models/Enrollment");
-const Course = require("../models/Course");
-const Payment = require("../models/Payment");
-const EmployerProfile = require("../models/EmployerProfile");
-const SavedCandidate = require("../models/SavedCandidate");
+const Message =
+  require("../models/Message");
 
-// 1. ADD THIS UTILITY IMPORT AT THE TOP OF THE FILE
+const NotificationModel =
+  require("../models/Notification");
+
+const User =
+  require("../models/user");
+
+const CandidateProfile =
+  require("../models/CandidateProfile");
+
+const Enrollment =
+  require("../models/Enrollment");
+
+const Course =
+  require("../models/Course");
+
+const Payment =
+  require("../models/Payment");
+
+const EmployerProfile =
+  require("../models/EmployerProfile");
+
+const SavedCandidate =
+  require("../models/SavedCandidate");
+
 const {
-    calculateProfileCompletion,
+  calculateProfileCompletion,
 } = require("../utils/profileCompletion");
 
-// ==============================
-// Unified Dashboard
-// ==============================
-exports.getUnifiedDashboard = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const role = req.user.role;
-
-    const user = await User.findById(userId).select("-password");
-
-        // =====================================================
-    // EMPLOYER DASHBOARD
-    // =====================================================
-    // =====================================================
-// EMPLOYER DASHBOARD
 // =====================================================
-if (role === "employer") {
+// UNIFIED DASHBOARD
+// =====================================================
 
-  const isActive =
-    user.subscriptionExpiry &&
-    new Date(user.subscriptionExpiry) > new Date();
+exports.getUnifiedDashboard =
+  async (req, res) => {
 
-  // -----------------------------------------
-  // Employer profile
-  // -----------------------------------------
-  const employerProfile = await EmployerProfile.findOne({
-    user: userId,
-  });
+    const startTime = Date.now();
 
-  // -----------------------------------------
-  // Total active candidates
-  // -----------------------------------------
-  const totalCandidates =
-    await CandidateProfile.countDocuments({
-      profileActive: true,
-      profileCompleted: true,
-    });
+    try {
 
-// -----------------------------------------
-// Saved candidates
-// -----------------------------------------
-// Only count saved candidates whose profiles are
-// currently active. The SavedCandidate records remain
-// in the database so they automatically become visible
-// again if the candidate is reactivated.
+      const userId =
+        req.user._id;
 
-const savedCandidateRecords =
-  await SavedCandidate.find({
-    employer: userId,
-  })
-    .populate({
-      path: "candidate",
-      match: {
-        profileActive: true,
-      },
-      select:
-        "firstName workerTypes city province yearsExperience profilePhoto profileVerified profileActive",
-    })
-    .sort({
-      createdAt: -1,
-    })
-    .limit(10);
+      const role =
+        req.user.role;
 
-// Remove saved records whose candidate is inactive.
-// Mongoose returns candidate as null when the populate
-// match condition fails.
-const activeSavedCandidateRecords =
-  savedCandidateRecords.filter(
-    (record) => record.candidate !== null
-  );
+      // ===================================================
+      // EMPLOYER
+      // ===================================================
 
-const savedCandidates =
-  activeSavedCandidateRecords.length;
+      if (role === "employer") {
 
-  // -----------------------------------------
-  // Recommended candidates
-  // -----------------------------------------
-  let recommendedCandidates = [];
+        const user =
+          await User.findById(userId)
+            .select(
+              "name email role phone subscriptionStatus subscriptionExpiry profilePhoto"
+            )
+            .lean();
 
-  if (employerProfile) {
+        if (!user) {
 
-    const recommendationFilter = {
-      profileActive: true,
-      profileCompleted: true,
-    };
+          return res.status(404).json({
+            message:
+              "User not found.",
+          });
 
-    if (
-      employerProfile.lookingFor &&
-      employerProfile.lookingFor.length > 0
-    ) {
-      recommendationFilter.workerTypes = {
-        $in: employerProfile.lookingFor,
-      };
-    }
+        }
 
-    if (employerProfile.province) {
-      recommendationFilter.province =
-        employerProfile.province;
-    }
+        const isActive =
+          user.subscriptionExpiry &&
+          new Date(
+            user.subscriptionExpiry
+          ) > new Date();
 
-    recommendedCandidates =
-      await CandidateProfile.find(
-        recommendationFilter
-      )
-        .select(
-          "firstName workerTypes city province yearsExperience profilePhoto profileVerified"
-        )
-        .sort({
-          profileVerified: -1,
-          yearsExperience: -1,
-          createdAt: -1,
-        })
-        .limit(5);
-  }
+        // -----------------------------------------------
+        // Employer profile
+        // -----------------------------------------------
 
-  return res.json({
+        const employerProfilePromise =
+          EmployerProfile
+            .findOne({
+              user: userId,
+            })
+            .lean();
 
-    role: "employer",
+        // -----------------------------------------------
+        // Candidate count
+        // -----------------------------------------------
 
-    subscriptionStatus:
-      isActive ? "active" : "inactive",
+        const totalCandidatesPromise =
+          CandidateProfile.countDocuments({
+            profileActive: true,
+            profileCompleted: true,
+          });
 
-    subscriptionExpiry:
-      user.subscriptionExpiry || null,
+        // -----------------------------------------------
+        // Saved candidates
+        // -----------------------------------------------
 
-    profile: employerProfile,
+        const savedCandidatePromise =
+          SavedCandidate
+            .find({
+              employer: userId,
+            })
+            .sort({
+              createdAt: -1,
+            })
+            .limit(10)
+            .populate({
+              path: "candidate",
+              match: {
+                profileActive: true,
+              },
+              select:
+                "firstName workerTypes city province yearsExperience profilePhoto profileVerified profileActive",
+            })
+            .lean();
 
-    stats: {
+        const [
+          employerProfile,
+          totalCandidates,
+          savedCandidateRecords,
+        ] = await Promise.all([
+          employerProfilePromise,
+          totalCandidatesPromise,
+          savedCandidatePromise,
+        ]);
 
-      totalCandidates,
+        const activeSavedCandidateRecords =
+          savedCandidateRecords.filter(
+            (record) =>
+              record.candidate
+          );
 
-      savedCandidates,
+        // -----------------------------------------------
+        // Recommendations
+        // -----------------------------------------------
 
-      recommendedCandidates:
-        recommendedCandidates.length,
+        let recommendedCandidates = [];
 
-    },
+        if (
+          employerProfile
+        ) {
 
-    savedCandidates:
-      savedCandidateRecords,
+          const recommendationFilter = {
+            profileActive: true,
+            profileCompleted: true,
+          };
 
-    recommendedCandidates,
+          if (
+            employerProfile.lookingFor &&
+            employerProfile
+              .lookingFor.length > 0
+          ) {
 
-  });
-}
+            recommendationFilter.workerTypes =
+              {
+                $in:
+                  employerProfile.lookingFor,
+              };
 
+          }
 
-    // =====================================================
-    // CANDIDATE DASHBOARD
-    // =====================================================
-    if (role === "candidate") {
-    const profile = await CandidateProfile.findOne({
-        user: userId,
-    }).populate("user");
+          if (
+            employerProfile.province
+          ) {
 
-    const enrollments = await Enrollment.find({
-        student: userId,
-    }).populate("course");
+            recommendationFilter.province =
+              employerProfile.province;
 
-    const completedCourses = enrollments.filter(
-        (enrollment) =>
-            enrollment.progress >= 100 ||
-            enrollment.status === "completed"
-    );
+          }
 
-    const certificates = enrollments.filter(
-        (enrollment) => enrollment.certificateIssued === true
-    );
+          recommendedCandidates =
+            await CandidateProfile
+              .find(
+                recommendationFilter
+              )
+              .select(
+                "firstName workerTypes city province yearsExperience profilePhoto profileVerified"
+              )
+              .sort({
+                profileVerified: -1,
+                yearsExperience: -1,
+                createdAt: -1,
+              })
+              .limit(5)
+              .lean();
 
-    const recommendedCourses = await Course.find({
-        isPublished: true,
-    })
-        .sort({ createdAt: -1 })
-        .limit(5);
+        }
 
-    // ==============================
-    // RECENT MESSAGES
-    // ==============================
-    const messages = await Message.find({
-        $or: [
-            { sender: userId },
-            { receiver: userId },
-        ],
-    })
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .populate("sender", "name firstName profilePhoto")
-        .populate("receiver", "name firstName profilePhoto");
+        console.log(
+          `[DASHBOARD:EMPLOYER] ${Date.now() - startTime}ms`
+        );
 
-    // ==============================
-    // RECENT NOTIFICATIONS
-    // ==============================
-    const notifications = await NotificationModel.find({
-        user: userId,
-    })
-        .sort({ createdAt: -1 })
-        .limit(10);
+        return res.json({
 
-    const completion = calculateProfileCompletion(profile);
+          role: "employer",
 
-    return res.json({
-        role: "candidate",
+          subscriptionStatus:
+            isActive
+              ? "active"
+              : "inactive",
 
-        profile,
+          subscriptionExpiry:
+            user.subscriptionExpiry ||
+            null,
 
-        stats: {
-            enrolledCourses: enrollments.length,
+          profile:
+            employerProfile,
+
+          stats: {
+
+            totalCandidates,
+
+            savedCandidates:
+              activeSavedCandidateRecords
+                .length,
+
+            recommendedCandidates:
+              recommendedCandidates
+                .length,
+
+          },
+
+          savedCandidates:
+            activeSavedCandidateRecords,
+
+          recommendedCandidates,
+
+        });
+
+      }
+
+      // ===================================================
+      // CANDIDATE
+      // ===================================================
+
+      if (role === "candidate") {
+
+        const [
+          profile,
+          enrollments,
+          recommendedCourses,
+          messages,
+          notifications,
+        ] = await Promise.all([
+
+          CandidateProfile
+            .findOne({
+              user: userId,
+            })
+            .populate(
+              "user",
+              "name email role profilePhoto phone"
+            )
+            .lean(),
+
+          Enrollment
+            .find({
+              student: userId,
+            })
+            .populate(
+              "course"
+            )
+            .lean(),
+
+          Course
+            .find({
+              published: true,
+            })
+            .select(
+              "title shortDescription category level duration price image published certificate passMark createdAt"
+            )
+            .sort({
+              createdAt: -1,
+            })
+            .limit(5)
+            .lean(),
+
+          Message
+            .find({
+              $or: [
+                {
+                  sender: userId,
+                },
+                {
+                  receiver: userId,
+                },
+              ],
+            })
+            .select(
+              "sender receiver message status deliveredAt readAt createdAt"
+            )
+            .sort({
+              createdAt: -1,
+            })
+            .limit(10)
+            .populate(
+              "sender",
+              "name firstName profilePhoto"
+            )
+            .populate(
+              "receiver",
+              "name firstName profilePhoto"
+            )
+            .lean(),
+
+          NotificationModel
+            .find({
+              user: userId,
+            })
+            .sort({
+              createdAt: -1,
+            })
+            .limit(10)
+            .lean(),
+
+        ]);
+
+        const completedCourses =
+          enrollments.filter(
+            (enrollment) =>
+              enrollment.progress >=
+                100 ||
+              enrollment.status ===
+                "completed" ||
+              enrollment.completed ===
+                true
+          );
+
+        const certificates =
+          enrollments.filter(
+            (enrollment) =>
+              enrollment.certificateIssued ===
+              true
+          );
+
+        const completion =
+          calculateProfileCompletion(
+            profile
+          );
+
+        console.log(
+          `[DASHBOARD:CANDIDATE] ${Date.now() - startTime}ms`
+        );
+
+        return res.json({
+
+          role: "candidate",
+
+          profile,
+
+          stats: {
+
+            enrolledCourses:
+              enrollments.length,
+
             verificationStatus:
-                profile?.verificationStatus || "unverified",
+              profile?.verificationStatus ||
+              "unverified",
+
             verifiedBadge:
-                profile?.verifiedBadge || false,
-        },
+              profile?.verifiedBadge ||
+              false,
 
-        enrollments,
-
-        completedCourses,
-
-        certificates,
-
-        recommendedCourses,
-
-        profileCompletion: completion,
-
-        // NEW
-        messages,
-
-        // NEW
-        notifications,
-    });
-}
-
-    // =====================================================
-    // STUDENT DASHBOARD
-    // =====================================================
-    if (role === "student") {
-
-      const profile = await User.findById(userId)
-        .select("-password");
-
-      const enrollments = await Enrollment.find({
-        student: userId,
-      }).populate("course");
-
-      const enrolledIds = enrollments.map(
-        (e) => e.course._id
-      );
-
-      const recommendedCourses = await Course.find({
-        _id: {
-          $nin: enrolledIds,
-        },
-      }).limit(5);
-
-      const certificates = enrollments.filter(
-        (e) => e.certificateIssued
-      );
-
-      const completedCourses = enrollments.filter(
-        (e) => e.completed
-      );
-
-      const announcements = [
-        {
-          title: "Welcome to Nakky Academy",
-          message:
-            "Continue learning and complete your courses to earn certificates.",
-        },
-        {
-          title: "New Courses Available",
-          message:
-            "Browse our latest professional caregiving courses.",
-        },
-      ];
-
-      return res.json({
-
-        role: "student",
-
-        profile,
-
-        enrollments,
-
-        recommendedCourses,
-
-        certificates,
-
-        completedCourses,
-
-        announcements,
-
-      });
-    }
-
-    // =====================================================
-    // ADMIN DASHBOARD
-    // =====================================================
-    if (role === "admin") {
-
-      const profile = await User.findById(userId)
-        .select("-password");
-
-      const totalUsers = await User.countDocuments();
-
-      const totalStudents = await User.countDocuments({
-        role: "student",
-      });
-
-      const totalEmployers = await User.countDocuments({
-        role: "employer",
-      });
-
-      const totalCandidates =
-        await CandidateProfile.countDocuments();
-
-      const totalCourses =
-        await Course.countDocuments();
-
-      const totalEnrollments =
-        await Enrollment.countDocuments();
-
-      const revenue = await Payment.aggregate([
-        {
-          $match: {
-            status: "paid",
           },
-        },
-        {
-          $group: {
-            _id: null,
-            total: {
-              $sum: "$amount",
-            },
+
+          enrollments,
+
+          completedCourses,
+
+          certificates,
+
+          recommendedCourses,
+
+          profileCompletion:
+            completion,
+
+          messages,
+
+          notifications,
+
+        });
+
+      }
+
+      // ===================================================
+      // STUDENT
+      // ===================================================
+
+      if (role === "student") {
+
+        const [
+          profile,
+          enrollments,
+        ] = await Promise.all([
+
+          User
+            .findById(userId)
+            .select(
+              "-password"
+            )
+            .lean(),
+
+          Enrollment
+            .find({
+              student: userId,
+            })
+            .populate(
+              "course"
+            )
+            .lean(),
+
+        ]);
+
+        const enrolledIds =
+          enrollments
+            .map(
+              (enrollment) =>
+                enrollment.course?._id
+            )
+            .filter(Boolean);
+
+        const recommendedCourses =
+          await Course
+            .find({
+              _id: {
+                $nin:
+                  enrolledIds,
+              },
+              published: true,
+            })
+            .select(
+              "title shortDescription category level duration price image published certificate passMark createdAt"
+            )
+            .sort({
+              createdAt: -1,
+            })
+            .limit(5)
+            .lean();
+
+        const certificates =
+          enrollments.filter(
+            (enrollment) =>
+              enrollment.certificateIssued
+          );
+
+        const completedCourses =
+          enrollments.filter(
+            (enrollment) =>
+              enrollment.completed ||
+              enrollment.progress >=
+                100
+          );
+
+        const announcements = [
+          {
+            title:
+              "Welcome to Nakky Academy",
+
+            message:
+              "Continue learning and complete your courses to earn certificates.",
           },
-        },
-      ]);
 
-      const pendingVerifications =
-        await CandidateProfile.find({
-          verificationStatus: "pending",
-        })
-          .populate("user", "name email")
-          .limit(5);
+          {
+            title:
+              "New Courses Available",
 
-      const recentUsers = await User.find()
-        .sort({
-          createdAt: -1,
-        })
-        .limit(5)
-        .select("name role createdAt");
+            message:
+              "Browse our latest professional caregiving courses.",
+          },
+        ];
 
-      return res.json({
+        console.log(
+          `[DASHBOARD:STUDENT] ${Date.now() - startTime}ms`
+        );
 
-        role: "admin",
+        return res.json({
 
-        profile,
+          role: "student",
 
-        stats: {
+          profile,
+
+          enrollments,
+
+          recommendedCourses,
+
+          certificates,
+
+          completedCourses,
+
+          announcements,
+
+        });
+
+      }
+
+      // ===================================================
+      // ADMIN
+      // ===================================================
+
+      if (role === "admin") {
+
+        const [
+          profile,
           totalUsers,
           totalStudents,
           totalEmployers,
           totalCandidates,
           totalCourses,
           totalEnrollments,
-          revenue: revenue[0]?.total || 0,
-        },
+          revenue,
+          pendingVerifications,
+          recentUsers,
+        ] = await Promise.all([
 
-        pendingVerifications,
+          User
+            .findById(userId)
+            .select("-password")
+            .lean(),
 
-        recentUsers,
+          User.countDocuments(),
 
-        recentActivity: [
-          {
-            message: "New candidate registered",
-          },
-          {
-            message: "Employer subscription activated",
-          },
-          {
-            message: "New course created",
-          },
-          {
-            message: "Candidate verification approved",
-          },
-          {
-            message: "Student enrolled in a course",
-          },
-        ],
+          User.countDocuments({
+            role: "student",
+          }),
 
+          User.countDocuments({
+            role: "employer",
+          }),
+
+          CandidateProfile.countDocuments(),
+
+          Course.countDocuments(),
+
+          Enrollment.countDocuments(),
+
+          Payment.aggregate([
+            {
+              $match: {
+                status: "paid",
+              },
+            },
+
+            {
+              $group: {
+                _id: null,
+
+                total: {
+                  $sum: "$amount",
+                },
+
+              },
+            },
+          ]),
+
+          CandidateProfile
+            .find({
+              verificationStatus:
+                "pending",
+            })
+            .select(
+              "firstName surname profilePhoto verificationStatus user"
+            )
+            .populate(
+              "user",
+              "name email"
+            )
+            .limit(5)
+            .lean(),
+
+          User
+            .find()
+            .sort({
+              createdAt: -1,
+            })
+            .limit(5)
+            .select(
+              "name role createdAt"
+            )
+            .lean(),
+
+        ]);
+
+        console.log(
+          `[DASHBOARD:ADMIN] ${Date.now() - startTime}ms`
+        );
+
+        return res.json({
+
+          role: "admin",
+
+          profile,
+
+          stats: {
+
+            totalUsers,
+
+            totalStudents,
+
+            totalEmployers,
+
+            totalCandidates,
+
+            totalCourses,
+
+            totalEnrollments,
+
+            revenue:
+              revenue[0]?.total ||
+              0,
+
+          },
+
+          pendingVerifications,
+
+          recentUsers,
+
+          recentActivity: [
+
+            {
+              message:
+                "New candidate registered",
+            },
+
+            {
+              message:
+                "Employer subscription activated",
+            },
+
+            {
+              message:
+                "New course created",
+            },
+
+            {
+              message:
+                "Candidate verification approved",
+            },
+
+            {
+              message:
+                "Student enrolled in a course",
+            },
+
+          ],
+
+        });
+
+      }
+
+      return res.status(403).json({
+        message:
+          "Unauthorized role",
       });
+
+    } catch (err) {
+
+      console.error(
+        "DASHBOARD ERROR:",
+        err
+      );
+
+      return res.status(500).json({
+        message:
+          err.message ||
+          "Unable to load dashboard.",
+      });
+
     }
 
-    return res.status(403).json({
-      message: "Unauthorized role",
-    });
-
-  } catch (err) {
-
-    console.error(err);
-
-    return res.status(500).json({
-      message: err.message,
-    });
-
-  }
-};
+  };

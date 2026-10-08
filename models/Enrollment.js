@@ -303,6 +303,56 @@ const EnrollmentSchema = new mongoose.Schema(
   }
 );
 
+/**
+ * =====================================================
+ * PERFORMANCE INDEXES
+ * =====================================================
+ *
+ * These indexes optimize the most common Enrollment
+ * queries used by student dashboards, course access,
+ * payment checks and certificate/completion lookups.
+ */
+
+// Student enrollments, newest first
+EnrollmentSchema.index({
+  student: 1,
+  createdAt: -1,
+});
+
+// Student + payment status
+EnrollmentSchema.index({
+  student: 1,
+  paymentStatus: 1,
+});
+
+// Student + specific course
+EnrollmentSchema.index({
+  student: 1,
+  course: 1,
+});
+
+// Course + payment status
+EnrollmentSchema.index({
+  course: 1,
+  paymentStatus: 1,
+});
+
+// Certificate lookup
+EnrollmentSchema.index({
+  certificateIssued: 1,
+});
+
+// Completed enrollment lookup
+EnrollmentSchema.index({
+  completed: 1,
+});
+
+/**
+ * -------------------------------------------------------
+ * EXPORT MODEL
+ * -------------------------------------------------------
+ */
+
 module.exports =
   mongoose.models.Enrollment ||
   mongoose.model("Enrollment", EnrollmentSchema);

@@ -19,6 +19,11 @@ const SavedCandidateSchema = new mongoose.Schema(
   }
 );
 
+SavedCandidateSchema.index({
+  employer: 1,
+  createdAt: -1,
+});
+
 // Prevent duplicate saves
 SavedCandidateSchema.index(
   {

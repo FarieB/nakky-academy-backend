@@ -214,6 +214,46 @@ const CandidateProfileSchema = new mongoose.Schema(
     timestamps: true
 });
 
+// =====================================================
+// PERFORMANCE INDEXES
+// =====================================================
+
+// Candidate profile lookup
+CandidateProfileSchema.index({
+    user: 1,
+});
+
+// Main active/completed candidate search
+CandidateProfileSchema.index({
+    profileActive: 1,
+    profileCompleted: 1,
+    profileVerified: -1,
+    averageRating: -1,
+    createdAt: -1,
+});
+
+// Worker type + location search
+CandidateProfileSchema.index({
+    profileActive: 1,
+    profileCompleted: 1,
+    workerTypes: 1,
+    province: 1,
+});
+
+// Availability search
+CandidateProfileSchema.index({
+    profileActive: 1,
+    profileCompleted: 1,
+    availabilityStatus: 1,
+});
+
+// Experience search
+CandidateProfileSchema.index({
+    profileActive: 1,
+    profileCompleted: 1,
+    yearsExperience: -1,
+});
+
 module.exports =
     mongoose.models.CandidateProfile ||
     mongoose.model(

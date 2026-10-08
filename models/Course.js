@@ -671,6 +671,23 @@ const CourseSchema = new mongoose.Schema(
   }
 );
 
+CourseSchema.index({
+    published: 1,
+    createdAt: -1,
+});
+
+CourseSchema.index({
+    category: 1,
+    published: 1,
+    createdAt: -1,
+});
+
+CourseSchema.index({
+    level: 1,
+    published: 1,
+    createdAt: -1,
+});
+
 /**
  * ============================================================
  * EXPORT

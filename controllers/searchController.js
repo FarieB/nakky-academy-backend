@@ -1,9 +1,17 @@
-const CandidateProfile = require("../models/CandidateProfile");
+const CandidateProfile = require(
+    "../models/CandidateProfile"
+);
 
 exports.searchCandidates = async (req, res) => {
+
+    const startTime = Date.now();
+
     try {
 
-        // Support both GET query parameters and POST body
+        // =====================================================
+        // INPUT
+        // =====================================================
+
         const {
             workerType,
             workerTypes,
@@ -16,155 +24,322 @@ exports.searchCandidates = async (req, res) => {
             workPreferences,
             availabilityStatus,
             minimumExperience,
-            verified
+            verified,
+            page = 1,
+            limit = 20,
         } = {
             ...req.body,
-            ...req.query
+            ...req.query,
         };
 
-        let query = {
+        // =====================================================
+        // PAGINATION
+        // =====================================================
+
+        const currentPage =
+            Math.max(
+                parseInt(page, 10) || 1,
+                1
+            );
+
+        const requestedLimit =
+            parseInt(limit, 10) || 20;
+
+        const pageLimit =
+            Math.min(
+                Math.max(
+                    requestedLimit,
+                    1
+                ),
+                50
+            );
+
+        const skip =
+            (currentPage - 1) *
+            pageLimit;
+
+        // =====================================================
+        // BASE QUERY
+        // =====================================================
+
+        const query = {
             profileActive: true,
-            profileCompleted: true
+            profileCompleted: true,
         };
 
-        // =====================================
-        // PROFESSION
-        // =====================================
+        // =====================================================
+        // WORKER TYPE
+        // =====================================================
 
-        const selectedWorkerTypes =
+        let selectedWorkerTypes =
             workerTypes ||
-            (workerType ? [workerType] : []);
+            (workerType
+                ? [workerType]
+                : []);
 
-        if (selectedWorkerTypes.length > 0) {
-            query.workerTypes = {
-                $in: selectedWorkerTypes
-            };
+        if (
+            typeof selectedWorkerTypes ===
+            "string"
+        ) {
+            selectedWorkerTypes =
+                selectedWorkerTypes
+                    .split(",")
+                    .map(
+                        (value) =>
+                            value.trim()
+                    )
+                    .filter(Boolean);
         }
 
-        // =====================================
+        if (
+            selectedWorkerTypes.length > 0
+        ) {
+
+            query.workerTypes = {
+                $in: selectedWorkerTypes,
+            };
+
+        }
+
+        // =====================================================
         // PROVINCE
-        // =====================================
+        // =====================================================
 
         if (province) {
             query.province = province;
         }
 
-        // =====================================
+        // =====================================================
         // GENDER
-        // =====================================
+        // =====================================================
 
         if (gender) {
             query.gender = gender;
         }
 
-        // =====================================
+        // =====================================================
         // LANGUAGES
-        // =====================================
+        // =====================================================
 
-        const selectedLanguages =
+        let selectedLanguages =
             languages ||
-            (language ? [language] : []);
-
-        if (selectedLanguages.length > 0) {
-            query.languages = {
-                $in: selectedLanguages
-            };
-        }
-
-        // =====================================
-        // WORK PREFERENCE
-        // =====================================
-
-        const selectedWorkPreferences =
-            workPreferences ||
-            (workPreference ? [workPreference] : []);
-
-        if (selectedWorkPreferences.length > 0) {
-            query.workPreferences = {
-                $in: selectedWorkPreferences
-            };
-        }
-
-        // =====================================
-        // EMPLOYMENT
-        // =====================================
-
-        if (employment) {
-            query.workPreferences = {
-                $in: [employment]
-            };
-        }
-
-        // =====================================
-        // AVAILABILITY
-        // =====================================
-
-        if (availabilityStatus) {
-            query.availabilityStatus = availabilityStatus;
-        }
-
-        // =====================================
-        // EXPERIENCE
-        // =====================================
+            (language
+                ? [language]
+                : []);
 
         if (
-            minimumExperience !== undefined &&
-            minimumExperience !== ""
+            typeof selectedLanguages ===
+            "string"
         ) {
-            query.yearsExperience = {
-                $gte: Number(minimumExperience)
-            };
+
+            selectedLanguages =
+                selectedLanguages
+                    .split(",")
+                    .map(
+                        (value) =>
+                            value.trim()
+                    )
+                    .filter(Boolean);
+
         }
 
-        // =====================================
+        if (
+            selectedLanguages.length > 0
+        ) {
+
+            query.languages = {
+                $in: selectedLanguages,
+            };
+
+        }
+
+        // =====================================================
+        // WORK PREFERENCES
+        // =====================================================
+
+        let selectedWorkPreferences =
+            workPreferences ||
+            (workPreference
+                ? [workPreference]
+                : []);
+
+        if (
+            typeof selectedWorkPreferences ===
+            "string"
+        ) {
+
+            selectedWorkPreferences =
+                selectedWorkPreferences
+                    .split(",")
+                    .map(
+                        (value) =>
+                            value.trim()
+                    )
+                    .filter(Boolean);
+
+        }
+
+        if (
+            selectedWorkPreferences.length >
+            0
+        ) {
+
+            query.workPreferences = {
+                $in:
+                    selectedWorkPreferences,
+            };
+
+        }
+
+        // =====================================================
+        // EMPLOYMENT
+        // =====================================================
+
+        if (employment) {
+
+            query.workPreferences = {
+                $in: [employment],
+            };
+
+        }
+
+        // =====================================================
+        // AVAILABILITY
+        // =====================================================
+
+        if (availabilityStatus) {
+
+            query.availabilityStatus =
+                availabilityStatus;
+
+        }
+
+        // =====================================================
+        // EXPERIENCE
+        // =====================================================
+
+        if (
+            minimumExperience !==
+                undefined &&
+            minimumExperience !== ""
+        ) {
+
+            const experience =
+                Number(
+                    minimumExperience
+                );
+
+            if (
+                Number.isFinite(
+                    experience
+                )
+            ) {
+
+                query.yearsExperience = {
+                    $gte: experience,
+                };
+
+            }
+
+        }
+
+        // =====================================================
         // VERIFIED
-        // =====================================
+        // =====================================================
 
         if (
             verified === true ||
             verified === "true"
         ) {
-            query.profileVerified = true;
+
+            query.profileVerified =
+                true;
+
         }
 
-        // =====================================
-        // SEARCH
-        // =====================================
+        // =====================================================
+        // DATABASE
+        // =====================================================
 
-        const candidates = await CandidateProfile.find(query)
-            .select(
-                "firstName workerTypes province city suburb yearsExperience languages expectedSalary availabilityStatus profileVerified profilePhoto averageRating totalReviews"
-            )
-            .sort({
-                profileVerified: -1,
-                averageRating: -1,
-                createdAt: -1
-            });
+        const [
+            candidates,
+            total,
+        ] = await Promise.all([
 
-        // =====================================
-        // SECURITY
-        // =====================================
-        // Do NOT return:
-        // surname
-        // email
-        // phone
-        // ID documents
-        // CV
-        // private references
-        // other sensitive information
+            CandidateProfile
+                .find(query)
+                .select(
+                    [
+                        "firstName",
+                        "workerTypes",
+                        "province",
+                        "city",
+                        "suburb",
+                        "yearsExperience",
+                        "languages",
+                        "expectedSalary",
+                        "availabilityStatus",
+                        "profileVerified",
+                        "profilePhoto",
+                        "averageRating",
+                        "totalReviews",
+                    ].join(" ")
+                )
+                .sort({
+                    profileVerified: -1,
+                    averageRating: -1,
+                    createdAt: -1,
+                })
+                .skip(skip)
+                .limit(pageLimit)
+                .lean(),
 
-        res.json(candidates);
+            CandidateProfile.countDocuments(
+                query
+            ),
+        ]);
+
+        // =====================================================
+        // RESPONSE
+        // =====================================================
+
+        const totalPages =
+            Math.ceil(
+                total / pageLimit
+            );
+
+        res.json({
+            candidates,
+
+            pagination: {
+                page: currentPage,
+                limit: pageLimit,
+                total,
+                totalPages,
+                hasNextPage:
+                    currentPage <
+                    totalPages,
+                hasPreviousPage:
+                    currentPage > 1,
+            },
+        });
+
+        console.log(
+            `[SEARCH] ${Date.now() - startTime}ms | ${total} matches | page ${currentPage}`
+        );
 
     } catch (err) {
 
-        console.log(
+        console.error(
             "SEARCH CANDIDATES ERROR:",
             err
         );
 
         res.status(500).json({
-            message: err.message
+            message:
+                "Unable to search candidates.",
         });
 
     }
+
 };

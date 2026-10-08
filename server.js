@@ -5,130 +5,298 @@ const connectDB = require("./config/db");
 const cors = require("cors");
 const { Server } = require("socket.io");
 
-// Import the main socket initializer from instructions
+// Socket
 const initializeSocket = require("./socket");
 
 dotenv.config();
-connectDB();
 
 const app = express();
 
-// ==============================
-// Middleware
-// ==============================
-app.use(cors());
-
-app.use(express.json());
-
-app.use(express.urlencoded({ extended: true }));
+// =====================================================
+// MIDDLEWARE
+// =====================================================
 
 app.use(
-    "/uploads",
-    express.static("uploads")
+  cors({
+    origin: "*",
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
+  })
 );
 
-// ==============================
-// Create HTTP Server
-// ==============================
+app.use(
+  express.json({
+    limit: "10mb",
+  })
+);
+
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "10mb",
+  })
+);
+
+// =====================================================
+// STATIC FILES
+// =====================================================
+
+app.use(
+  "/uploads",
+  express.static("uploads", {
+    maxAge: "1d",
+  })
+);
+
+// =====================================================
+// PERFORMANCE LOGGER
+// =====================================================
+
+app.use((req, res, next) => {
+
+  const start = process.hrtime.bigint();
+
+  res.on("finish", () => {
+
+    const end = process.hrtime.bigint();
+
+    const durationMs =
+      Number(end - start) / 1_000_000;
+
+    // Only log API requests
+    if (req.originalUrl.startsWith("/api")) {
+
+      console.log(
+        `[API] ${req.method} ${req.originalUrl} → ${res.statusCode} (${durationMs.toFixed(0)}ms)`
+      );
+
+    }
+  });
+
+  next();
+});
+
+// =====================================================
+// HTTP SERVER
+// =====================================================
+
 const server = http.createServer(app);
 
-// ==============================
-// Socket.IO
-// ==============================
+// =====================================================
+// SOCKET.IO
+// =====================================================
+
 const io = new Server(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST", "PUT", "DELETE"]
-    }
+  cors: {
+    origin: "*",
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+    ],
+  },
 });
 
-// Initialize Socket Handlers
 initializeSocket(io);
+
 require("./socket/chatSocket")(io);
 
-// ==============================
-// Routes
-// ==============================
+// =====================================================
+// ROUTES
+// =====================================================
 
-const adminRoutes = require("./routes/adminRoutes");
-const authRoutes = require("./routes/authRoutes");
-const courseRoutes = require("./routes/courseRoutes");
-const dashboardRoutes = require("./routes/dashboardRoutes");
-const messageRoutes = require("./routes/messageRoutes");
-const notificationRoutes = require("./routes/notificationRoutes");
-const paymentRoutes = require("./routes/paymentRoutes");
-const profileRoutes = require("./routes/profileRoutes");
-const recommendationRoutes = require("./routes/recommendationRoutes");
-const reviewRoutes = require("./routes/reviewRoutes");
-const searchRoutes = require("./routes/searchRoutes");
-const subscriptionRoutes = require("./routes/subscriptionRoutes");
-const assessmentRoutes = require("./routes/assessmentRoutes");
+const adminRoutes =
+  require("./routes/adminRoutes");
 
+const authRoutes =
+  require("./routes/authRoutes");
 
+const courseRoutes =
+  require("./routes/courseRoutes");
 
-// ==============================
-// API Routes
-// ==============================
+const dashboardRoutes =
+  require("./routes/dashboardRoutes");
 
-app.use("/api/auth", authRoutes);
+const messageRoutes =
+  require("./routes/messageRoutes");
 
-app.use("/api/payments", paymentRoutes);
+const notificationRoutes =
+  require("./routes/notificationRoutes");
 
-app.use("/api/courses", courseRoutes);
+const paymentRoutes =
+  require("./routes/paymentRoutes");
 
-app.use("/api/dashboard", dashboardRoutes);
+const profileRoutes =
+  require("./routes/profileRoutes");
 
-app.use("/api/admin", adminRoutes);
+const recommendationRoutes =
+  require("./routes/recommendationRoutes");
 
-app.use("/api/subscriptions", subscriptionRoutes);
+const reviewRoutes =
+  require("./routes/reviewRoutes");
 
-app.use("/api/recommendations", recommendationRoutes);
+const searchRoutes =
+  require("./routes/searchRoutes");
 
-app.use("/api/reviews", reviewRoutes);
+const subscriptionRoutes =
+  require("./routes/subscriptionRoutes");
 
-app.use("/api/profiles", profileRoutes);
+const assessmentRoutes =
+  require("./routes/assessmentRoutes");
 
-app.use("/api/search", searchRoutes);
+// =====================================================
+// API
+// =====================================================
 
-app.use("/api/messages", messageRoutes);
+app.use(
+  "/api/auth",
+  authRoutes
+);
 
-app.use("/api/notifications", notificationRoutes);
+app.use(
+  "/api/payments",
+  paymentRoutes
+);
 
-app.use("/api", assessmentRoutes);
+app.use(
+  "/api/courses",
+  courseRoutes
+);
 
+app.use(
+  "/api/dashboard",
+  dashboardRoutes
+);
 
+app.use(
+  "/api/admin",
+  adminRoutes
+);
 
-// ==============================
-// Health Check
-// ==============================
+app.use(
+  "/api/subscriptions",
+  subscriptionRoutes
+);
+
+app.use(
+  "/api/recommendations",
+  recommendationRoutes
+);
+
+app.use(
+  "/api/reviews",
+  reviewRoutes
+);
+
+app.use(
+  "/api/profiles",
+  profileRoutes
+);
+
+app.use(
+  "/api/search",
+  searchRoutes
+);
+
+app.use(
+  "/api/messages",
+  messageRoutes
+);
+
+app.use(
+  "/api/notifications",
+  notificationRoutes
+);
+
+app.use(
+  "/api",
+  assessmentRoutes
+);
+
+// =====================================================
+// HEALTH CHECK
+// =====================================================
 
 app.get("/", (req, res) => {
-    res.status(200).json({
-        success: true,
-        message: "Nakky Academy API Running 🚀"
+
+  res.status(200).json({
+    success: true,
+    message:
+      "Nakky Academy API Running 🚀",
+  });
+
+});
+
+// =====================================================
+// GLOBAL ERROR HANDLER
+// =====================================================
+
+app.use(
+  (err, req, res, _next) => {
+
+    console.error(
+      "GLOBAL ERROR:",
+      err
+    );
+
+    res.status(
+      err.status || 500
+    ).json({
+      success: false,
+      message:
+        err.message ||
+        "Internal Server Error",
     });
-});
 
-// ==============================
-// Global Error Handler
-// ==============================
+  }
+);
 
-app.use((err, req, res, _next) => {
-    console.error(err.stack);
+// =====================================================
+// START SERVER ONLY AFTER DATABASE CONNECTS
+// =====================================================
 
-    res.status(err.status || 500).json({
-        success: false,
-        message: err.message || "Internal Server Error"
-    });
-});
+const PORT =
+  process.env.PORT || 5000;
 
-// ==============================
-// Start Server
-// ==============================
+const startServer = async () => {
 
-const PORT = process.env.PORT || 5000;
+  try {
 
-server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-});
+    await connectDB();
+
+    server.listen(
+      PORT,
+      () => {
+
+        console.log(
+          `🚀 Nakky Academy API running on port ${PORT}`
+        );
+
+        console.log(
+          "Database connection ready."
+        );
+
+      }
+    );
+
+  } catch (error) {
+
+    console.error(
+      "Server startup failed:",
+      error
+    );
+
+    process.exit(1);
+  }
+};
+
+startServer();
 

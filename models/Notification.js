@@ -10,7 +10,6 @@ const NotificationSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true,
-        index: true,
     },
 
     // ==========================================
@@ -114,6 +113,17 @@ const NotificationSchema = new mongoose.Schema(
 },
 {
     timestamps: true,
+});
+
+NotificationSchema.index({
+    user: 1,
+    createdAt: -1,
+});
+
+NotificationSchema.index({
+    user: 1,
+    isRead: 1,
+    createdAt: -1,
 });
 
 module.exports =

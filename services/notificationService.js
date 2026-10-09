@@ -212,35 +212,3 @@ exports.notifyMessage = async ({
     });
 
 };
-
-// ======================================================
-// Message Notification
-// ======================================================
-
-exports.notifyMessage = async ({
-    sender,
-    receiver,
-    senderName,
-}) => {
-
-    return exports.createNotification({
-
-        user: receiver,
-
-        sender,
-
-        title: "New Message",
-
-        message: `${senderName} sent you a message.`,
-
-        type: "message",
-
-        action: "open_chat",
-
-        actionData: {
-            userId: sender,
-        },
-
-    });
-
-};

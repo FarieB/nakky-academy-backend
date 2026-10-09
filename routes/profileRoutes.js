@@ -5,12 +5,6 @@ const protect = require("../middleware/authMiddleware");
 const documentUpload = require("../middleware/documentUpload");
 
 const {
-    getEmployerContact,
-} = require(
-    "../controllers/profileController"
-);
-
-const {
   createCandidateProfile,
   getCandidateProfile,
   updateCandidateProfile,

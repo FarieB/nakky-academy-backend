@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema(
@@ -29,6 +30,22 @@ const UserSchema = new mongoose.Schema(
     password: {
       type: String,
       required: true,
+    },
+
+    // ==========================================
+    // PASSWORD RECOVERY
+    // ==========================================
+
+    passwordResetToken: {
+      type: String,
+      default: undefined,
+      select: false,
+    },
+
+    passwordResetExpires: {
+      type: Date,
+      default: undefined,
+      select: false,
     },
 
     phone: {
@@ -107,46 +124,41 @@ const UserSchema = new mongoose.Schema(
       type: Date,
     },
 
-   uploadedDocuments: {
-    idDocument: {
+    uploadedDocuments: {
+      idDocument: {
         type: String,
         default: "",
-    },
+      },
 
-    policeClearance: {
+      policeClearance: {
         type: String,
         default: "",
-    },
+      },
 
-    references: {
+      references: {
         type: [String],
         default: [],
-    },
+      },
 
-    qualifications: {
+      qualifications: {
         type: [String],
         default: [],
+      },
     },
-}, 
 
     // ==========================================
     // ACTIVITY
     // ==========================================
 
-      // ==============================
-    // Online Presence
-    // ==============================
-
     isOnline: {
-        type: Boolean,
-        default: false,
+      type: Boolean,
+      default: false,
     },
 
     lastSeen: {
-        type: Date,
-        default: null,
+      type: Date,
+      default: null,
     },
- 
 
     lastLogin: Date,
   },

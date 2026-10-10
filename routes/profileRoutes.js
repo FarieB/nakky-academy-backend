@@ -14,7 +14,6 @@ const {
   uploadDocuments,
   uploadCandidateProfileDocuments,
   viewCandidateDocument,
-
   createEmployerProfile,
   getEmployerProfile,
   updateEmployerProfile,
@@ -22,14 +21,12 @@ const {
   deactivateEmployerProfile,
   adminActivateEmployer,
   adminDeactivateEmployer,
-
   searchCandidates,
   getCandidateContact,
   getEmployerContact,
   saveCandidate,
   getSavedCandidates,
   removeSavedCandidate,
-
   getAllCandidates,
   getAdminCandidateById,
   getAllEmployers,
@@ -37,16 +34,15 @@ const {
   verifyCandidate,
   rejectCandidate,
   getRecruitmentStats,
-  getUserPresence
+  getUserPresence,
 } = require("../controllers/profileController");
 
-// ======================================
-// CANDIDATE PROFILE MANAGEMENT
-// ======================================
+// Candidate profile management
 router.post("/candidate", protect, createCandidateProfile);
 router.get("/candidate", protect, getCandidateProfile);
 router.put("/candidate", protect, updateCandidateProfile);
 router.get("/candidate/:id", protect, getCandidateById);
+
 router.get(
   "/candidate/:candidateId/document/:type",
   protect,
@@ -58,83 +54,117 @@ router.get(
   protect,
   viewCandidateDocument
 );
+
 router.post(
-    "/candidate/upload-documents",
-    protect,
-    uploadDocuments
+  "/candidate/upload-documents",
+  protect,
+  uploadDocuments
 );
+
 router.post(
   "/candidate/profile-documents",
   protect,
   documentUpload.fields([
-    {
-      name: "idDocument",
-      maxCount: 1,
-    },
-    {
-      name: "policeClearance",
-      maxCount: 1,
-    },
-    {
-      name: "cv",
-      maxCount: 1,
-    },
-    {
-      name: "qualifications",
-      maxCount: 20,
-    },
-    {
-      name: "references",
-      maxCount: 20,
-    },
+    { name: "idDocument", maxCount: 1 },
+    { name: "policeClearance", maxCount: 1 },
+    { name: "cv", maxCount: 1 },
+    { name: "qualifications", maxCount: 20 },
+    { name: "references", maxCount: 20 },
   ]),
   uploadCandidateProfileDocuments
 );
 
-// ======================================
-// EMPLOYER PROFILE MANAGEMENT
-// ======================================
+// Employer profile management
 router.post("/employer", protect, createEmployerProfile);
 router.get("/employer", protect, getEmployerProfile);
 router.put("/employer", protect, updateEmployerProfile);
-router.put("/employer/activate", protect, activateEmployerProfile);
-router.put("/employer/deactivate", protect, deactivateEmployerProfile);
 
-// ======================================
-// SEARCH & INTERACTIONS
-// ======================================
+router.put(
+  "/employer/activate",
+  protect,
+  activateEmployerProfile
+);
+
+router.put(
+  "/employer/deactivate",
+  protect,
+  deactivateEmployerProfile
+);
+
+// Search and protected contact information
 router.get("/search", protect, searchCandidates);
-router.get("/candidate/:candidateId/contact", protect, getCandidateContact);
+
+router.get(
+  "/candidate/:candidateId/contact",
+  protect,
+  getCandidateContact
+);
+
+// employerId must be the EmployerProfile document ID,
+// not the User document ID.
+// The controller must enforce the existing access checks.
 router.get(
   "/employer/:employerId/contact",
   protect,
   getEmployerContact
 );
 
-// Saved Profiles Engine
-router.get("/saved-candidates", protect, getSavedCandidates);
-router.post("/candidate/:candidateId/save", protect, saveCandidate);
-router.delete("/candidate/:candidateId/save", protect, removeSavedCandidate);
+// Saved candidates
+router.get(
+  "/saved-candidates",
+  protect,
+  getSavedCandidates
+);
 
+router.post(
+  "/candidate/:candidateId/save",
+  protect,
+  saveCandidate
+);
 
+router.delete(
+  "/candidate/:candidateId/save",
+  protect,
+  removeSavedCandidate
+);
 
-// ======================================
-// ADMIN CHANNELS
-// ======================================
-router.get("/admin/candidates", protect, getAllCandidates);
+// Admin routes
+router.get(
+  "/admin/candidates",
+  protect,
+  getAllCandidates
+);
+
 router.get(
   "/admin/candidate/:candidateId",
   protect,
   getAdminCandidateById
 );
-router.get("/admin/employers", protect, getAllEmployers);
+
+router.get(
+  "/admin/employers",
+  protect,
+  getAllEmployers
+);
+
 router.get(
   "/admin/employer/:employerId",
   protect,
   getAdminEmployerById
 );
-router.put("/admin/candidate/:candidateId/verify", protect, verifyCandidate);
-router.put("/admin/candidate/:candidateId/reject", protect, rejectCandidate);
+
+router.put(
+  "/admin/candidate/:candidateId/verify",
+  protect,
+  verifyCandidate
+);
+
+router.put(
+  "/admin/candidate/:candidateId/reject",
+  protect,
+  rejectCandidate
+);
+
 router.put(
   "/admin/candidate/:candidateId/activate",
   protect,
@@ -158,12 +188,17 @@ router.put(
   protect,
   adminDeactivateEmployer
 );
-router.get("/admin/stats", protect, getRecruitmentStats);
 
 router.get(
-    "/presence/:userId",
-    protect,
-    getUserPresence
+  "/admin/stats",
+  protect,
+  getRecruitmentStats
+);
+
+router.get(
+  "/presence/:userId",
+  protect,
+  getUserPresence
 );
 
 module.exports = router;

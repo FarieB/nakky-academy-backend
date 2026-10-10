@@ -39,6 +39,19 @@ const EmployerProfileSchema = new mongoose.Schema(
         default: ""
     },
 
+    contactPhone: {
+        type: String,
+        trim: true,
+        default: ""
+    },
+
+    contactEmail: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        default: ""
+    },
+
     // ==========================================
     // LOCATION
     // ==========================================

@@ -247,7 +247,8 @@ const JobPostSchema = new mongoose.Schema(
                 "Post Surgery Care",
                 "Palliative Care",
                 "Hospice Care",
-                "General Care"
+                "General Care",
+                "Other"
             ],
             default: "None"
         },

@@ -1,10 +1,13 @@
+
 const express = require("express");
 
-const router =
-    express.Router();
+const router = express.Router();
 
 const protect =
     require("../middleware/authMiddleware");
+
+const checkSubscription =
+    require("../middleware/checkSubscription");
 
 const {
     createJob,
@@ -21,7 +24,7 @@ const {
 
 
 // =====================================================
-// PUBLIC/LOGGED-IN JOB SEARCH
+// JOB SEARCH
 // =====================================================
 
 router.get(
@@ -45,7 +48,6 @@ router.get(
 
 // =====================================================
 // EMPLOYER'S JOBS
-// IMPORTANT: BEFORE /:id
 // =====================================================
 
 router.get(
@@ -57,7 +59,6 @@ router.get(
 
 // =====================================================
 // ADMIN EXPIRY
-// IMPORTANT: BEFORE /:id
 // =====================================================
 
 router.post(
@@ -80,11 +81,13 @@ router.get(
 
 // =====================================================
 // CREATE JOB
+// Requires an active employer subscription
 // =====================================================
 
 router.post(
     "/",
     protect,
+    checkSubscription,
     createJob
 );
 
@@ -96,6 +99,7 @@ router.post(
 router.put(
     "/:id",
     protect,
+    checkSubscription,
     updateJob
 );
 
@@ -129,6 +133,7 @@ router.patch(
 router.patch(
     "/:id/reactivate",
     protect,
+    checkSubscription,
     reactivateJob
 );
 

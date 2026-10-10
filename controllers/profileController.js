@@ -1619,20 +1619,18 @@ exports.getEmployerContact = async (req, res) => {
       success: true,
 
       contact: {
-
         contactPerson:
-          employerProfile.contactPerson || "",
+            employerProfile.contactPerson || "",
 
         householdName:
-          employerProfile.householdName || "",
+            employerProfile.householdName || "",
 
         phone:
-          employerProfile.contactPhone || contactUser.phone || "",
+            employerProfile.contactPhone || "",
 
         email:
-          employerProfile.contactEmail || contactUser.email || ""
-
-      }
+            employerProfile.contactEmail || ""
+    }
 
     });
 

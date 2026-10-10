@@ -16,6 +16,10 @@ const {
     hasActiveSubscription,
 } = require("../middleware/marketplaceAccess");
 
+const {
+  calculateProfileCompletion,
+} = require("../utils/profileCompletion");
+
 
 
 
@@ -418,9 +422,17 @@ exports.updateCandidateProfile = async (req, res) => {
       // ==================================================
     }
 
+   const completion = calculateProfileCompletion(profile);
+
+    // The backend, not the mobile client, owns this flag.
+    profile.profileCompleted = completion.percentage === 100;
+
     await profile.save();
 
-    return res.json(profile);
+    return res.json({
+      ...profile.toObject(),
+      profileCompletion: completion,
+    });
   } catch (err) {
     console.error("UPDATE CANDIDATE PROFILE ERROR:", err);
 

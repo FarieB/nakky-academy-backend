@@ -381,23 +381,6 @@ JobPostSchema.index({
 });
 
 
-// =====================================================
-// AUTOMATIC EXPIRY
-// =====================================================
-
-JobPostSchema.pre(
-    "find",
-    function(next) {
-
-        const now = new Date();
-
-        this._conditions = {
-            ...this._conditions
-        };
-
-        next();
-    }
-);
 
 
 module.exports =

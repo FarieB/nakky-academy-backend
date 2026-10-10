@@ -633,7 +633,7 @@ exports.getAllJobs = async (
                 .populate({
                     path: "employerProfile",
                     select:
-                        "contactPerson householdName employerType province city suburb lookingFor"
+                        "contactPerson householdName employerType province city suburb"
                 })
                 .sort({
                     createdAt: -1
@@ -705,7 +705,7 @@ exports.getJobById = async (
             .populate({
                 path: "employerProfile",
                 select:
-                    "contactPerson householdName employerType province city suburb lookingFor employmentTypes preferredLanguages"
+                    "contactPerson householdName employerType province city suburb"
             })
             .lean();
 
@@ -1271,7 +1271,7 @@ exports.getJobMatches = async (
             .populate({
                 path: "employerProfile",
                 select:
-                    "contactPerson householdName province city suburb lookingFor"
+                    "contactPerson householdName employerType province city suburb"
             })
             .sort({
                 createdAt: -1

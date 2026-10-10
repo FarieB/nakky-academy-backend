@@ -475,37 +475,16 @@ exports.createEmployerProfile = async (req, res) => {
 
       householdName: req.body.householdName,
 
+      contactPhone: req.body.contactPhone || "",
+
+      contactEmail: req.body.contactEmail || "",
+
       province: req.body.province,
 
       city: req.body.city,
 
       suburb: req.body.suburb,
 
-      lookingFor: req.body.lookingFor || [],
-
-      employmentTypes:
-        req.body.employmentTypes || [],
-
-      preferredGender:
-        req.body.preferredGender || "Any",
-
-      preferredAgeMin:
-        req.body.preferredAgeMin || 18,
-
-      preferredAgeMax:
-        req.body.preferredAgeMax || 65,
-
-      preferredExperience:
-        req.body.preferredExperience || 0,
-
-      preferredNationalities:
-        req.body.preferredNationalities || [],
-
-      preferredLanguages:
-        req.body.preferredLanguages || [],
-
-      salaryOffered:
-        req.body.salaryOffered || 0,
 
       profileActive: true,
 
@@ -580,29 +559,15 @@ exports.updateEmployerProfile = async (req, res) => {
 
       "householdName",
 
+      "contactPhone",
+
+      "contactEmail",
+
       "province",
 
       "city",
 
       "suburb",
-
-      "lookingFor",
-
-      "employmentTypes",
-
-      "preferredGender",
-
-      "preferredAgeMin",
-
-      "preferredAgeMax",
-
-      "preferredExperience",
-
-      "preferredNationalities",
-
-      "preferredLanguages",
-
-      "salaryOffered",
 
       "hiringStatus"
 
@@ -1662,10 +1627,10 @@ exports.getEmployerContact = async (req, res) => {
           employerProfile.householdName || "",
 
         phone:
-          contactUser.phone || "",
+          employerProfile.contactPhone || contactUser.phone || "",
 
         email:
-          contactUser.email || ""
+          employerProfile.contactEmail || contactUser.email || ""
 
       }
 
